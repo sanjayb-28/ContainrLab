@@ -9,7 +9,7 @@ from pathlib import Path
 import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
-from pydantic import BaseModel
+from pydantic import BaseModel  # type: ignore[import]
 
 app = FastAPI(title="runnerd")
 
@@ -21,7 +21,7 @@ STARTUP_TIMEOUT = int(os.getenv("STARTUP_TIMEOUT", "30"))
 MEMORY_LIMIT = os.getenv("RUNNER_MEMORY", "2g")
 NANO_CPUS = int(os.getenv("RUNNER_NANO_CPUS", str(1_000_000_000)))
 PIDS_LIMIT = int(os.getenv("RUNNER_PIDS_LIMIT", "1024"))
-SOCKET_PATH = "/home/rootless/.docker/run/docker.sock"
+SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
 
 
 class StartRequest(BaseModel):
@@ -63,6 +63,7 @@ def start_runner(payload: StartRequest) -> dict[str, str]:
             nano_cpus=NANO_CPUS,
             pids_limit=PIDS_LIMIT,
             volumes={volume.name: {"bind": "/workspace", "mode": "rw"}},
+            privileged=True,  # TODO: tighten once rootless DinD works without privileged on target host
         )
     except APIError as exc:
         raise HTTPException(status_code=502, detail=f"Failed to start runner container: {exc.explanation}") from exc
