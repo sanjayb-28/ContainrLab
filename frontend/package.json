@@ -1,0 +1,8 @@
+{
+  "name": "containrlab-frontend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev-placeholder.js"
+  }
+}
