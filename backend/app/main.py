@@ -1,11 +1,15 @@
 import os
 
-import httpx
+import httpx  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
+
+from .routers import labs
 
 app = FastAPI(title="DockrLearn API")
 
 RUNNERD_BASE_URL = os.getenv("RUNNERD_BASE_URL", "http://runnerd:8080")
+
+app.include_router(labs.router)
 
 
 @app.get("/healthz")

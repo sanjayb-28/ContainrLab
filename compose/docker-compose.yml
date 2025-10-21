@@ -41,6 +41,8 @@ services:
       RUNNER_IMAGE: ${RUNNER_IMAGE:-containrlab-runner:latest}
       LABS_ROOT: /labs
       STARTUP_TIMEOUT: ${RUNNER_STARTUP_TIMEOUT:-30}
+    ports:
+      - "8080:8080"  # useful for local smoke tests; remove when nginx proxies runnerd internally
     restart: unless-stopped
 
   redis:
