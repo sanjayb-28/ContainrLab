@@ -32,3 +32,4 @@ poetry.lock
 coverage/
 *.swp
 plan.txt
+roadmap.txt
