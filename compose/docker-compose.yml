@@ -30,9 +30,9 @@ services:
 
   runnerd:
     build:
-      context: ../runner
-      dockerfile: Dockerfile
+      context: ../runner/supervisor
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - runner_cache:/var/lib/docker
     environment:
       NETWORK_NAME: dockrlearn_net
