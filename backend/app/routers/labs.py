@@ -128,5 +128,6 @@ async def check_lab(
     try:
         storage.record_attempt(session_id=request.session_id, lab_slug=lab_slug, result=result)
     except StorageError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        status = 404 if "not found" in str(exc).lower() else 500
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
     return LabCheckResponse(passed=result.passed, failures=failures, metrics=result.metrics, notes=result.notes)

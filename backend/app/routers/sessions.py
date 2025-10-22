@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
 from ..services.runner_client import RunnerClient, get_runner_client
+from ..services.storage import Storage, StorageError, get_storage
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -53,6 +54,25 @@ class RunStopResponse(BaseModel):
     stopped: bool
     removed: bool | None = None
     logs: list[str]
+
+
+class AttemptEntry(BaseModel):
+    id: int
+    lab_slug: str
+    created_at: str
+    passed: bool
+    failures: list[Dict[str, Any]]
+    metrics: Dict[str, Any]
+    notes: Dict[str, Any]
+
+
+class SessionDetailResponse(BaseModel):
+    session_id: str
+    lab_slug: str
+    runner_container: str
+    ttl_seconds: int
+    created_at: str
+    attempts: list[AttemptEntry]
 
 
 @router.post("/{session_id}/build", response_model=BuildResponse)
@@ -129,3 +149,40 @@ async def stop_session_container(
     if "logs" not in runner_payload:
         runner_payload["logs"] = []
     return RunStopResponse(**runner_payload)
+
+
+@router.get("/{session_id}", response_model=SessionDetailResponse)
+async def get_session_detail(
+    session_id: str,
+    limit: int | None = None,
+    storage: Storage = Depends(get_storage),
+) -> SessionDetailResponse:
+    session = storage.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    try:
+        attempts = storage.list_attempts(session_id, limit=limit if limit and limit > 0 else None)
+    except StorageError as exc:  # pragma: no cover - list_attempts currently cannot raise
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    attempt_models = [
+        AttemptEntry(
+            id=attempt["id"],
+            lab_slug=attempt["lab_slug"],
+            created_at=attempt["created_at"],
+            passed=attempt["passed"],
+            failures=attempt["failures"],
+            metrics=attempt["metrics"],
+            notes=attempt["notes"],
+        )
+        for attempt in attempts
+    ]
+
+    return SessionDetailResponse(
+        session_id=session["session_id"],
+        lab_slug=session["lab_slug"],
+        runner_container=session["runner_container"],
+        ttl_seconds=session["ttl_seconds"],
+        created_at=session["created_at"],
+        attempts=attempt_models,
+    )

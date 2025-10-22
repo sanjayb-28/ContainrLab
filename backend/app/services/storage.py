@@ -107,7 +107,10 @@ class Storage:
         result: JudgeResult,
     ) -> None:
         created_at = _utc_now()
-        self._ensure_session_exists(session_id=session_id, lab_slug=lab_slug)
+        if self.get_session(session_id) is None:
+            raise StorageError(
+                f"Session '{session_id}' not found. Call /labs/{lab_slug}/start before judging."
+            )
         failures_payload = json.dumps([asdict(failure) for failure in result.failures]) if result.failures else None
         metrics_payload = json.dumps(result.metrics, default=_json_default) if result.metrics else None
         notes_payload = json.dumps(result.notes, default=_json_default) if result.notes else None
@@ -137,17 +140,21 @@ class Storage:
             return None
         return dict(row)
 
-    def list_attempts(self, session_id: str) -> List[Dict[str, Any]]:
+    def list_attempts(self, session_id: str, *, limit: int | None = None) -> List[Dict[str, Any]]:
         with self._lock:
-            cursor = self._connection.execute(
-                """
+            query = """
                 SELECT id, session_id, lab_slug, created_at, passed, failures, metrics, notes
                 FROM attempts
                 WHERE session_id = ?
-                ORDER BY id ASC
-                """,
-                (session_id,),
-            )
+                ORDER BY id DESC
+            """
+            params: tuple[Any, ...]
+            if limit is not None:
+                query += " LIMIT ?"
+                params = (session_id, limit)
+            else:
+                params = (session_id,)
+            cursor = self._connection.execute(query, params)
             rows = cursor.fetchall()
         attempts: List[Dict[str, Any]] = []
         for row in rows:
@@ -164,20 +171,6 @@ class Storage:
                 }
             )
         return attempts
-
-    def _ensure_session_exists(self, *, session_id: str, lab_slug: str) -> None:
-        try:
-            with self._lock:
-                self._connection.execute(
-                    """
-                    INSERT OR IGNORE INTO sessions (session_id, lab_slug, runner_container, ttl_seconds, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (session_id, lab_slug, "unknown", 0, _utc_now()),
-                )
-                self._connection.commit()
-        except sqlite3.Error as exc:
-            raise StorageError(f"Failed to ensure session '{session_id}' exists: {exc}") from exc
 
 
 @lru_cache
