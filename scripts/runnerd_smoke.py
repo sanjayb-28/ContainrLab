@@ -5,6 +5,7 @@ Run with: `python scripts/runnerd_smoke.py` while docker compose stack is up.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 import urllib.error
@@ -108,6 +109,36 @@ def main() -> int:
                 timeout=30,
             )
             print(json.dumps(listing_body, indent=2))
+
+            print("Writing smoke-test file via API...")
+            smoke_path = "/workspace/smoke.txt"
+            smoke_content = f"Smoke test line for {session_id}"
+            _post(
+                f"{api_base or DEFAULT_API_BASE}/fs/write",
+                data={
+                    "session_id": session_id,
+                    "path": smoke_path,
+                    "content": base64.b64encode(smoke_content.encode("utf-8")).decode("ascii"),
+                    "encoding": "base64",
+                },
+                timeout=30,
+            )
+            print("Verifying written content via runner exec...")
+            exec_body = _post(
+                f"{args.base_url}/exec",
+                data={
+                    "session_id": session_id,
+                    "command": ["cat", smoke_path],
+                },
+                timeout=30,
+            )
+            print(json.dumps(exec_body, indent=2))
+            exit_code = exec_body.get("exit_code")
+            if exit_code not in (0, None):
+                raise SystemExit("Smoke test verification failed: cat command returned non-zero exit code")
+            logs = exec_body.get("logs", [])
+            if smoke_content not in "\n".join(logs):
+                raise SystemExit("Smoke test verification failed: expected content not found in exec output")
         except SystemExit as exc:
             print(exc)
 

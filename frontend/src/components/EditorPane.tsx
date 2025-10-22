@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { decodeFromBase64, encodeToBase64, readFile, writeFile } from "@/lib/fs";
 
@@ -9,17 +9,44 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false 
 export type EditorPaneProps = {
   sessionId?: string;
   path?: string;
+  onDirtyChange?: (path: string | undefined, dirty: boolean) => void;
+  onSave?: (path: string) => void;
 };
 
-export default function EditorPane({ sessionId, path }: EditorPaneProps) {
+export default function EditorPane({ sessionId, path, onDirtyChange, onSave }: EditorPaneProps) {
   const [content, setContent] = useState<string>("");
   const [status, setStatus] = useState<"idle" | "loading" | "dirty" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const previousPathRef = useRef<string | undefined>();
+  const dirtyStateRef = useRef<{ path?: string; dirty: boolean }>({ path: undefined, dirty: false });
+
+  const updateDirtyState = useCallback(
+    (targetPath: string | undefined, dirty: boolean) => {
+      const previous = dirtyStateRef.current;
+      if (previous.path === targetPath && previous.dirty === dirty) {
+        return;
+      }
+      dirtyStateRef.current = { path: targetPath, dirty };
+      if (targetPath) {
+        onDirtyChange?.(targetPath, dirty);
+      }
+    },
+    [onDirtyChange]
+  );
+
+  useEffect(() => {
+    if (previousPathRef.current && previousPathRef.current !== path) {
+      updateDirtyState(previousPathRef.current, false);
+    }
+    previousPathRef.current = path;
+  }, [path, updateDirtyState]);
 
   useEffect(() => {
     if (!sessionId || !path) {
       setContent("");
       setStatus("idle");
+      setError(null);
+      updateDirtyState(undefined, false);
       return;
     }
     setStatus("loading");
@@ -28,13 +55,14 @@ export default function EditorPane({ sessionId, path }: EditorPaneProps) {
         setContent(decodeFromBase64(resp.content));
         setStatus("idle");
         setError(null);
+        updateDirtyState(path, false);
       })
       .catch((err) => {
         const message = err instanceof Error ? err.message : "Unable to load file";
         setError(message);
         setStatus("error");
       });
-  }, [sessionId, path]);
+  }, [path, sessionId, updateDirtyState]);
 
   const handleSave = async () => {
     if (!sessionId || !path) {
@@ -43,6 +71,8 @@ export default function EditorPane({ sessionId, path }: EditorPaneProps) {
     setStatus("saving");
     try {
       await writeFile(sessionId, path, encodeToBase64(content));
+      updateDirtyState(path, false);
+      onSave?.(path);
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2000);
     } catch (err) {
@@ -81,6 +111,7 @@ export default function EditorPane({ sessionId, path }: EditorPaneProps) {
             onChange={(value) => {
               setContent(value ?? "");
               setStatus("dirty");
+              updateDirtyState(path, true);
             }}
           />
         ) : (

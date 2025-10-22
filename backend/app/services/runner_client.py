@@ -159,6 +159,40 @@ class RunnerClient:
             response.raise_for_status()
             return response.json()
 
+    async def create_entry(
+        self,
+        session_id: str,
+        *,
+        path: str,
+        kind: str = "file",
+        content_b64: str | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "path": path,
+            "kind": kind,
+            "content": content_b64,
+            "encoding": "base64",
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/create", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def rename_entry(self, session_id: str, *, path: str, new_path: str) -> dict[str, Any]:
+        payload = {"session_id": session_id, "path": path, "new_path": new_path}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/rename", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def delete_entry(self, session_id: str, *, path: str) -> dict[str, Any]:
+        payload = {"session_id": session_id, "path": path}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/delete", json=payload)
+            response.raise_for_status()
+            return response.json()
+
 
 def get_runner_client() -> RunnerClient:
     """Convenience dependency for FastAPI injection."""
