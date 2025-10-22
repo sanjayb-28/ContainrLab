@@ -58,6 +58,56 @@ class RunnerClient:
             response.raise_for_status()
             return response.json()
 
+    async def run(
+        self,
+        session_id: str,
+        *,
+        image: str,
+        command: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        ports: list[str] | None = None,
+        name: str | None = None,
+        detach: bool = True,
+        auto_remove: bool = False,
+        remove_existing: bool = True,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "image": image,
+            "command": command or [],
+            "env": env or {},
+            "ports": ports or [],
+            "name": name,
+            "detach": detach,
+            "auto_remove": auto_remove,
+            "remove_existing": remove_existing,
+        }
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(f"{self._base_url}/run", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def stop_run(
+        self,
+        session_id: str,
+        *,
+        container_name: str | None = None,
+        timeout: int = 10,
+        remove: bool = True,
+        ignore_missing: bool = True,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "container_name": container_name,
+            "timeout": timeout,
+            "remove": remove,
+            "ignore_missing": ignore_missing,
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(f"{self._base_url}/run/stop", json=payload)
+            response.raise_for_status()
+            return response.json()
+
 
 def get_runner_client() -> RunnerClient:
     """Convenience dependency for FastAPI injection."""

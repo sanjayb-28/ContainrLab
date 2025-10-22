@@ -23,7 +23,7 @@ MEMORY_LIMIT = os.getenv("RUNNER_MEMORY", "2g")
 NANO_CPUS = int(os.getenv("RUNNER_NANO_CPUS", str(1_000_000_000)))
 PIDS_LIMIT = int(os.getenv("RUNNER_PIDS_LIMIT", "1024"))
 SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
-MAX_BUILD_LOG_LINES = 200
+MAX_LOG_LINES = 200
 
 
 class StartRequest(BaseModel):
@@ -42,6 +42,26 @@ class BuildRequest(BaseModel):
     dockerfile_path: str = "Dockerfile"
     image_tag: str | None = None
     build_args: Dict[str, str] = Field(default_factory=dict)
+
+
+class RunRequest(BaseModel):
+    session_id: str
+    image: str
+    command: List[str] = Field(default_factory=list)
+    env: Dict[str, str] = Field(default_factory=dict)
+    ports: List[str] = Field(default_factory=list)
+    name: str | None = None
+    detach: bool = True
+    auto_remove: bool = False
+    remove_existing: bool = True
+
+
+class RunStopRequest(BaseModel):
+    session_id: str
+    container_name: str | None = None
+    timeout: int = 10
+    remove: bool = True
+    ignore_missing: bool = True
 
 
 @app.get("/healthz")
@@ -137,6 +157,74 @@ def build_image(payload: BuildRequest) -> dict[str, Any]:
     return {"image_tag": image_tag, "logs": trimmed_logs, "metrics": metrics}
 
 
+@app.post("/run")
+def run_image(payload: RunRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    inner_name = payload.name or _default_run_container_name(payload.session_id)
+
+    if payload.remove_existing:
+        _remove_inner_container(container, inner_name)
+
+    command: List[str] = ["docker", "run"]
+
+    if payload.detach:
+        command.append("-d")
+    if payload.auto_remove:
+        command.append("--rm")
+
+    command.extend(["--name", inner_name])
+
+    for mapping in payload.ports:
+        if ":" not in mapping:
+            raise HTTPException(status_code=400, detail=f"Port mapping '{mapping}' must be in HOST:CONTAINER form")
+        command.extend(["-p", mapping])
+
+    for key, value in payload.env.items():
+        command.extend(["-e", f"{key}={str(value)}"])
+
+    command.append(payload.image)
+    command.extend(payload.command)
+
+    logs, exit_code, elapsed = _exec_docker_command(container, command)
+    trimmed_logs = _trim_logs(logs)
+
+    if exit_code != 0:
+        raise HTTPException(status_code=500, detail={"error": "docker run failed", "logs": trimmed_logs})
+
+    return {
+        "container_name": inner_name,
+        "logs": trimmed_logs,
+        "elapsed_seconds": round(elapsed, 3),
+    }
+
+
+@app.post("/run/stop")
+def stop_run(payload: RunStopRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    inner_name = payload.container_name or _default_run_container_name(payload.session_id)
+
+    if not _inner_container_exists(container, inner_name):
+        if payload.ignore_missing:
+            return {"ok": True, "stopped": False}
+        raise HTTPException(status_code=404, detail="Inner container not found")
+
+    stop_cmd: List[str] = ["docker", "stop", "-t", str(payload.timeout), inner_name]
+    logs, exit_code, _ = _exec_docker_command(container, stop_cmd)
+    trimmed_logs = _trim_logs(logs)
+
+    if exit_code != 0 and not payload.ignore_missing:
+        raise HTTPException(status_code=500, detail={"error": "Failed to stop inner container", "logs": trimmed_logs})
+
+    removed: bool | None = None
+    if payload.remove:
+        rm_logs, rm_code, _ = _exec_docker_command(container, ["docker", "rm", inner_name])
+        removed = rm_code == 0
+        if rm_code != 0 and not payload.ignore_missing:
+            raise HTTPException(status_code=500, detail={"error": "Failed to remove inner container", "logs": _trim_logs(rm_logs)})
+
+    return {"ok": exit_code == 0, "stopped": exit_code == 0, "removed": removed, "logs": trimmed_logs}
+
+
 def _container_name(session_id: str) -> str:
     return f"rl_sess_{session_id[:32]}"
 
@@ -203,13 +291,18 @@ def _build_tar(path: Path) -> bytes:
     data.seek(0)
     return data.read()
 
-
-def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[List[str], int, float]:
+def _exec_docker_command(
+    container,
+    command: List[str],
+    *,
+    workdir: str | None = None,
+    environment: Dict[str, str] | None = None,
+) -> tuple[List[str], int, float]:
     start = time.time()
     exec_result = container.exec_run(
         command,
-        environment={"DOCKER_BUILDKIT": "1"},
         workdir=workdir,
+        environment=environment or {},
         demux=False,
     )
 
@@ -220,6 +313,10 @@ def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[Lis
     exit_code = exec_result.exit_code or 0
     elapsed = time.time() - start
     return logs, exit_code, elapsed
+
+
+def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[List[str], int, float]:
+    return _exec_docker_command(container, command, workdir=workdir, environment={"DOCKER_BUILDKIT": "1"})
 
 
 def _collect_image_metrics(container, image_tag: str, elapsed: float) -> Dict[str, Any]:
@@ -244,10 +341,10 @@ def _collect_image_metrics(container, image_tag: str, elapsed: float) -> Dict[st
     return metrics
 
 
-def _trim_logs(logs: List[str]) -> List[str]:
-    if len(logs) <= MAX_BUILD_LOG_LINES:
+def _trim_logs(logs: List[str], limit: int = MAX_LOG_LINES) -> List[str]:
+    if len(logs) <= limit:
         return logs
-    return ["... (truncated) ..."] + logs[-MAX_BUILD_LOG_LINES:]
+    return ["... (truncated) ..."] + logs[-limit:]
 
 
 def _assert_path_exists(container, path: str, *, workdir: str | None = None, expect_directory: bool) -> None:
@@ -260,3 +357,22 @@ def _assert_path_exists(container, path: str, *, workdir: str | None = None, exp
 
 def _default_image_tag(session_id: str) -> str:
     return f"containrlab/session-{session_id[:12]}:latest"
+
+
+def _default_run_container_name(session_id: str) -> str:
+    return f"rl_app_{session_id[:12]}"
+
+
+def _remove_inner_container(container, name: str) -> None:
+    if not _inner_container_exists(container, name):
+        return
+    container.exec_run(["docker", "rm", "-f", name])
+
+
+def _inner_container_exists(container, name: str) -> bool:
+    result = container.exec_run(
+        ["docker", "ps", "-a", "--filter", f"name=^{name}$", "--format", "{{.ID}}"]
+    )
+    if result.exit_code != 0:
+        return False
+    return bool((result.output or b"").decode("utf-8", errors="replace").strip())

@@ -19,6 +19,7 @@ def main() -> int:
     parser.add_argument("lab", help="Lab slug to seed", default="lab1", nargs="?")
     parser.add_argument("--base-url", dest="base_url", default=DEFAULT_BASE_URL)
     parser.add_argument("--skip-build", action="store_true", help="Skip build check")
+    parser.add_argument("--skip-run", action="store_true", help="Skip runtime container check")
     args = parser.parse_args()
 
     session_id = uuid.uuid4().hex
@@ -31,6 +32,7 @@ def main() -> int:
     )
     print(f"Start response:\n{json.dumps(start_body, indent=2)}")
 
+    image_tag = None
     if not args.skip_build:
         print("Triggering docker build inside the session...")
         build_payload = {
@@ -42,6 +44,42 @@ def main() -> int:
         build_body = _post(f"{args.base_url}/build", data=build_payload, timeout=120)
         print("Build response:")
         print(json.dumps(build_body, indent=2))
+        image_tag = build_body.get("image_tag")
+
+    if not args.skip_run:
+        if not image_tag:
+            image_tag = f"smoke-{session_id[:12]}"
+        print("Launching runtime container inside the session...")
+        run_payload = {
+            "session_id": session_id,
+            "image": image_tag,
+            "command": ["sleep", "20"],
+            "detach": True,
+            "auto_remove": False,
+            "remove_existing": True,
+        }
+        run_body = _post(f"{args.base_url}/run", data=run_payload, timeout=60)
+        print("Run response:")
+        print(json.dumps(run_body, indent=2))
+
+        inner_name = run_body.get("container_name")
+        if not isinstance(inner_name, str):
+            raise SystemExit("Run response missing container_name")
+
+        print("Stopping runtime container...")
+        stop_body = _post(
+            f"{args.base_url}/run/stop",
+            data={
+                "session_id": session_id,
+                "container_name": inner_name,
+                "timeout": 2,
+                "remove": True,
+                "ignore_missing": False,
+            },
+            timeout=30,
+        )
+        print("Run stop response:")
+        print(json.dumps(stop_body, indent=2))
 
     try:
         stop_body = _post(
