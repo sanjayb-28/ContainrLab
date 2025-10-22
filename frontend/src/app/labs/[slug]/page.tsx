@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import LabActions from "@/components/LabActions";
+import Terminal from "@/components/Terminal";
 import Markdown from "@/components/Markdown";
 import { fetchLab, fetchSession, LabDetail, SessionDetail } from "@/lib/labs";
 
@@ -76,6 +77,16 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
       </header>
 
       <LabActions slug={params.slug} initialSession={session} />
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
+        <h2 className="mb-3 text-lg font-semibold text-slate-100">Terminal</h2>
+        <p className="text-sm text-slate-400">
+          Connected to session: {session?.session_id ?? "(start a session to use the terminal)"}
+        </p>
+        <Terminal
+          sessionId={session?.session_id}
+          className="mt-4"
+        />
+      </div>
 
       <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
         <h2 className="text-lg font-semibold text-slate-100">README</h2>
