@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import WorkspacePane from "@/components/WorkspacePane";
 import { notFound } from "next/navigation";
 import LabActions from "@/components/LabActions";
 import Terminal from "@/components/Terminal";
@@ -77,15 +78,13 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
       </header>
 
       <LabActions slug={params.slug} initialSession={session} />
+      <WorkspacePane sessionId={session?.session_id} />
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
         <h2 className="mb-3 text-lg font-semibold text-slate-100">Terminal</h2>
         <p className="text-sm text-slate-400">
           Connected to session: {session?.session_id ?? "(start a session to use the terminal)"}
         </p>
-        <Terminal
-          sessionId={session?.session_id}
-          className="mt-4"
-        />
+        <Terminal sessionId={session?.session_id} className="mt-4" />
       </div>
 
       <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
