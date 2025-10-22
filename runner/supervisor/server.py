@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import io
+import json
 import os
 import tarfile
 import time
@@ -9,7 +11,7 @@ from typing import Any, Dict, List
 
 import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
-from fastapi import FastAPI, HTTPException  # type: ignore[import]
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
 app = FastAPI(title="runnerd")
@@ -24,6 +26,7 @@ NANO_CPUS = int(os.getenv("RUNNER_NANO_CPUS", str(1_000_000_000)))
 PIDS_LIMIT = int(os.getenv("RUNNER_PIDS_LIMIT", "1024"))
 SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
 MAX_LOG_LINES = 200
+DEFAULT_SHELL = os.getenv("RUNNER_DEFAULT_SHELL", "/bin/sh")
 
 
 class StartRequest(BaseModel):
@@ -243,6 +246,93 @@ def exec_in_runner(payload: ExecRequest) -> Dict[str, Any]:
     )
     trimmed_logs = _trim_logs(logs)
     return {"exit_code": exit_code, "logs": trimmed_logs, "elapsed_seconds": round(elapsed, 3)}
+
+
+@app.websocket("/terminal/{session_id}")
+async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str = DEFAULT_SHELL):
+    await websocket.accept()
+    try:
+        container = _get_running_container(session_id)
+    except HTTPException as exc:
+        await websocket.close(code=4404, reason=str(exc.detail))
+        return
+
+    try:
+        exec_id = container.client.api.exec_create(  # type: ignore[attr-defined]
+            container.id,
+            cmd=[shell],
+            tty=True,
+            stdin=True,
+            stdout=True,
+            stderr=True,
+        )
+    except APIError as exc:
+        await websocket.close(code=1011, reason=f"Failed to start shell: {exc.explanation}")
+        return
+
+    sock = container.client.api.exec_start(  # type: ignore[attr-defined]
+        exec_id,
+        tty=True,
+        stream=False,
+        socket=True,
+    )
+
+    loop = asyncio.get_event_loop()
+    stop_event = asyncio.Event()
+
+    async def pump_container_to_client() -> None:
+        try:
+            while not stop_event.is_set():
+                data = await loop.run_in_executor(None, sock.recv, 4096)
+                if not data:
+                    break
+                await websocket.send_text(data.decode("utf-8", errors="ignore"))
+        except Exception:
+            pass
+        finally:
+            stop_event.set()
+
+    async def pump_client_to_container() -> None:
+        try:
+            while not stop_event.is_set():
+                try:
+                    message = await websocket.receive_text()
+                except WebSocketDisconnect:
+                    break
+                try:
+                    payload = json.loads(message)
+                except json.JSONDecodeError:
+                    payload = {"type": "input", "data": message}
+
+                msg_type = payload.get("type")
+                if msg_type == "input":
+                    data = payload.get("data", "")
+                    if isinstance(data, str) and data:
+                        await loop.run_in_executor(None, sock.send, data.encode("utf-8"))
+                elif msg_type == "resize":
+                    cols = payload.get("cols")
+                    rows = payload.get("rows")
+                    if isinstance(cols, int) and isinstance(rows, int):
+                        try:
+                            container.client.api.exec_resize(  # type: ignore[attr-defined]
+                                exec_id,
+                                width=cols,
+                                height=rows,
+                            )
+                        except APIError:
+                            pass
+        finally:
+            stop_event.set()
+
+    try:
+        await asyncio.gather(pump_container_to_client(), pump_client_to_container())
+    finally:
+        stop_event.set()
+        try:
+            sock.close()
+        except Exception:
+            pass
+        await websocket.close()
 
 
 def _container_name(session_id: str) -> str:
