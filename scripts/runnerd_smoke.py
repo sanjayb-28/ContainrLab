@@ -100,6 +100,17 @@ def main() -> int:
         print("Run stop response:")
         print(json.dumps(stop_body, indent=2))
 
+    if api_base:
+        try:
+            print("Listing workspace via API...")
+            listing_body = _get(
+                f"{api_base or DEFAULT_API_BASE}/fs/{session_id}/list?path=/workspace",
+                timeout=30,
+            )
+            print(json.dumps(listing_body, indent=2))
+        except SystemExit as exc:
+            print(exc)
+
     if api_base and not args.skip_judge:
         print("Invoking backend judge endpoint...")
         judge_body = _post(
