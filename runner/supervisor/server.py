@@ -59,11 +59,11 @@ def start_runner(payload: StartRequest) -> dict[str, str]:
             detach=True,
             tty=True,
             environment={"DOCKER_TLS_CERTDIR": ""},
+            privileged=True,
             mem_limit=MEMORY_LIMIT,
             nano_cpus=NANO_CPUS,
             pids_limit=PIDS_LIMIT,
             volumes={volume.name: {"bind": "/workspace", "mode": "rw"}},
-            privileged=True,  # TODO: tighten once rootless DinD works without privileged on target host
         )
     except APIError as exc:
         raise HTTPException(status_code=502, detail=f"Failed to start runner container: {exc.explanation}") from exc
