@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
 from pydantic import BaseModel  # type: ignore[import]
 
 from ..services.judge_service import JudgeService, get_judge_service
+from ..services.lab_catalog import LabCatalog, get_lab_catalog
 from ..services.runner_client import RunnerClient, get_runner_client
 
 router = APIRouter(prefix="/labs", tags=["labs"])
@@ -20,6 +21,17 @@ class LabStartResponse(BaseModel):
     session_id: str
     ttl: int
     runner_container: str
+
+
+class LabListItem(BaseModel):
+    slug: str
+    title: str
+    summary: str | None = None  # type: ignore[name-defined]
+    has_starter: bool
+
+
+class LabDetailResponse(LabListItem):
+    readme: str
 
 
 class LabCheckRequest(BaseModel):
@@ -56,6 +68,33 @@ async def start_lab(lab_slug: str, runner: RunnerClient = Depends(get_runner_cli
         raise HTTPException(status_code=502, detail="Runner response missing container reference")
 
     return LabStartResponse(session_id=session_id, ttl=SESSION_TTL_SECONDS, runner_container=container_name)
+
+
+@router.get("", response_model=list[LabListItem])
+async def list_labs(catalog: LabCatalog = Depends(get_lab_catalog)) -> list[LabListItem]:
+    try:
+        labs = catalog.list()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return [
+        LabListItem(slug=lab.slug, title=lab.title, summary=lab.summary, has_starter=lab.has_starter)
+        for lab in labs
+    ]
+
+
+@router.get("/{lab_slug}", response_model=LabDetailResponse)
+async def get_lab(lab_slug: str, catalog: LabCatalog = Depends(get_lab_catalog)) -> LabDetailResponse:
+    try:
+        lab = catalog.get(lab_slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return LabDetailResponse(
+        slug=lab.slug,
+        title=lab.title,
+        summary=lab.summary,
+        has_starter=lab.has_starter,
+        readme=lab.readme,
+    )
 
 
 @router.post("/{lab_slug}/check", response_model=LabCheckResponse)

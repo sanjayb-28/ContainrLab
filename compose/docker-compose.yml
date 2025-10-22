@@ -14,16 +14,21 @@ services:
 
   api:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
     environment:
       GEMINI_API_KEY_FILE: /run/secrets/gemini_key
       SQLITE_PATH: /data/app.db
       REDIS_URL: redis://redis:6379/0
       RUNNERD_BASE_URL: http://runnerd:8080
+      LABS_ROOT: /labs
     secrets:
       - gemini_key
     volumes:
       - ../sqlite:/data
+      - ../labs:/labs:ro
+    ports:
+      - "8000:8000"  # expose API locally for smoke tests and UI development
     depends_on:
       - redis
       - runnerd
