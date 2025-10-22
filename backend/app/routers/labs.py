@@ -11,6 +11,7 @@ from pydantic import BaseModel  # type: ignore[import]
 from ..services.judge_service import JudgeService, get_judge_service
 from ..services.lab_catalog import LabCatalog, get_lab_catalog
 from ..services.runner_client import RunnerClient, get_runner_client
+from ..services.storage import Storage, StorageError, get_storage
 
 router = APIRouter(prefix="/labs", tags=["labs"])
 
@@ -52,7 +53,11 @@ class LabCheckResponse(BaseModel):
 
 
 @router.post("/{lab_slug}/start", response_model=LabStartResponse)
-async def start_lab(lab_slug: str, runner: RunnerClient = Depends(get_runner_client)) -> LabStartResponse:
+async def start_lab(
+    lab_slug: str,
+    runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+) -> LabStartResponse:
     """Create a disposable runner session for the requested lab."""
     session_id = uuid.uuid4().hex
     try:
@@ -66,6 +71,16 @@ async def start_lab(lab_slug: str, runner: RunnerClient = Depends(get_runner_cli
     container_name = runner_payload.get("container")
     if not container_name:
         raise HTTPException(status_code=502, detail="Runner response missing container reference")
+
+    try:
+        storage.record_session(
+            session_id=session_id,
+            lab_slug=lab_slug,
+            runner_container=container_name,
+            ttl_seconds=SESSION_TTL_SECONDS,
+        )
+    except StorageError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return LabStartResponse(session_id=session_id, ttl=SESSION_TTL_SECONDS, runner_container=container_name)
 
@@ -103,10 +118,15 @@ async def check_lab(
     request: LabCheckRequest,
     runner: RunnerClient = Depends(get_runner_client),
     judge: JudgeService = Depends(get_judge_service),
+    storage: Storage = Depends(get_storage),
 ) -> LabCheckResponse:
     result = await judge.evaluate(lab_slug, request.session_id, runner)
     failures = [
         JudgeFailureResponse(code=failure.code, message=failure.message, hint=failure.hint)
         for failure in result.failures
     ]
+    try:
+        storage.record_attempt(session_id=request.session_id, lab_slug=lab_slug, result=result)
+    except StorageError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return LabCheckResponse(passed=result.passed, failures=failures, metrics=result.metrics, notes=result.notes)

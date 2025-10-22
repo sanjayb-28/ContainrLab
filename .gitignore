@@ -23,6 +23,8 @@ poetry.lock
 *.log
 *.pid
 .docker-compose
+sqlite/*.db
+sqlite/*.db-*
 
 # Editor
 .idea/
