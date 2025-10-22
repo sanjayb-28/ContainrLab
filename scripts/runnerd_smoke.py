@@ -1,6 +1,7 @@
 """Local smoke test for runnerd start/stop endpoints.
 
 Run with: `python scripts/runnerd_smoke.py` while docker compose stack is up.
+Specify a different lab slug (e.g. `lab3`) by passing it as the first argument.
 """
 from __future__ import annotations
 
