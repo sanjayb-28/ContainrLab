@@ -19,6 +19,7 @@ services:
       GEMINI_API_KEY_FILE: /run/secrets/gemini_key
       SQLITE_PATH: /data/app.db
       REDIS_URL: redis://redis:6379/0
+      RUNNERD_BASE_URL: http://runnerd:8080
     secrets:
       - gemini_key
     volumes:
@@ -34,8 +35,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner_cache:/var/lib/docker
+      - ../labs:/labs:ro
     environment:
       NETWORK_NAME: dockrlearn_net
+      RUNNER_IMAGE: ${RUNNER_IMAGE:-containrlab-runner:latest}
+      LABS_ROOT: /labs
+      STARTUP_TIMEOUT: ${RUNNER_STARTUP_TIMEOUT:-30}
+    ports:
+      - "8080:8080"  # useful for local smoke tests; remove when nginx proxies runnerd internally
     restart: unless-stopped
 
   redis:
