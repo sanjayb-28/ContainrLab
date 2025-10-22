@@ -5,11 +5,12 @@ import os
 import tarfile
 import time
 from pathlib import Path
+from typing import Any, Dict, List
 
 import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
-from pydantic import BaseModel  # type: ignore[import]
+from pydantic import BaseModel, Field  # type: ignore[import]
 
 app = FastAPI(title="runnerd")
 
@@ -22,6 +23,7 @@ MEMORY_LIMIT = os.getenv("RUNNER_MEMORY", "2g")
 NANO_CPUS = int(os.getenv("RUNNER_NANO_CPUS", str(1_000_000_000)))
 PIDS_LIMIT = int(os.getenv("RUNNER_PIDS_LIMIT", "1024"))
 SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
+MAX_BUILD_LOG_LINES = 200
 
 
 class StartRequest(BaseModel):
@@ -32,6 +34,14 @@ class StartRequest(BaseModel):
 class StopRequest(BaseModel):
     session_id: str
     preserve_workspace: bool = False
+
+
+class BuildRequest(BaseModel):
+    session_id: str
+    context_path: str = "/workspace"
+    dockerfile_path: str = "Dockerfile"
+    image_tag: str | None = None
+    build_args: Dict[str, str] = Field(default_factory=dict)
 
 
 @app.get("/healthz")
@@ -93,6 +103,40 @@ def stop_runner(payload: StopRequest) -> dict[str, bool]:
     return {"ok": True}
 
 
+@app.post("/build")
+def build_image(payload: BuildRequest) -> dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    if not payload.context_path.startswith("/"):
+        raise HTTPException(status_code=400, detail="context_path must be absolute inside the runner")
+    _assert_path_exists(container, payload.context_path, expect_directory=True)
+    _assert_path_exists(container, payload.dockerfile_path, workdir=payload.context_path, expect_directory=False)
+
+    image_tag = payload.image_tag or _default_image_tag(payload.session_id)
+    command: List[str] = [
+        "docker",
+        "build",
+        "-f",
+        payload.dockerfile_path,
+        "-t",
+        image_tag,
+    ]
+
+    for key, value in payload.build_args.items():
+        command.extend(["--build-arg", f"{key}={value}"])
+
+    command.append(".")
+
+    logs, exit_code, elapsed = _exec_docker_build(container, command, payload.context_path)
+    trimmed_logs = _trim_logs(logs)
+
+    if exit_code != 0:
+        raise HTTPException(status_code=500, detail={"error": "docker build failed", "logs": trimmed_logs})
+
+    metrics = _collect_image_metrics(container, image_tag, elapsed)
+
+    return {"image_tag": image_tag, "logs": trimmed_logs, "metrics": metrics}
+
+
 def _container_name(session_id: str) -> str:
     return f"rl_sess_{session_id[:32]}"
 
@@ -116,6 +160,18 @@ def _remove_container_if_exists(name: str) -> None:
         return
     except APIError as exc:
         raise HTTPException(status_code=502, detail=f"Failed to remove existing container: {exc.explanation}") from exc
+
+
+def _get_running_container(session_id: str):
+    container_name = _container_name(session_id)
+    try:
+        container = client.containers.get(container_name)
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail="Runner session not found") from exc
+    container.reload()
+    if container.status != "running":
+        raise HTTPException(status_code=409, detail="Runner session is not running")
+    return container
 
 
 def _wait_for_dockerd(container) -> None:
@@ -146,3 +202,61 @@ def _build_tar(path: Path) -> bytes:
         tar.add(path, arcname=".")
     data.seek(0)
     return data.read()
+
+
+def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[List[str], int, float]:
+    start = time.time()
+    exec_result = container.exec_run(
+        command,
+        environment={"DOCKER_BUILDKIT": "1"},
+        workdir=workdir,
+        demux=False,
+    )
+
+    raw_output = exec_result.output or b""
+    text = raw_output.decode("utf-8", errors="replace").replace("\r\n", "\n")
+    logs = [line for line in text.split("\n") if line]
+
+    exit_code = exec_result.exit_code or 0
+    elapsed = time.time() - start
+    return logs, exit_code, elapsed
+
+
+def _collect_image_metrics(container, image_tag: str, elapsed: float) -> Dict[str, Any]:
+    metrics: Dict[str, Any] = {"elapsed_seconds": round(elapsed, 3)}
+
+    size_result = container.exec_run(["docker", "image", "inspect", image_tag, "--format", "{{.Size}}"])  # type: ignore[list-item]
+    if size_result.exit_code == 0:
+        raw = size_result.output.decode("utf-8", errors="replace").strip()
+        try:
+            size_bytes = int(raw)
+        except ValueError:
+            size_bytes = None
+        if size_bytes is not None:
+            metrics["image_size_bytes"] = size_bytes
+            metrics["image_size_mb"] = round(size_bytes / (1024 * 1024), 2)
+
+    layers_result = container.exec_run(["docker", "history", image_tag, "--format", "{{.ID}}"])  # type: ignore[list-item]
+    if layers_result.exit_code == 0:
+        entries = [line for line in layers_result.output.decode("utf-8", errors="replace").splitlines() if line.strip()]
+        metrics["layer_count"] = len(entries)
+
+    return metrics
+
+
+def _trim_logs(logs: List[str]) -> List[str]:
+    if len(logs) <= MAX_BUILD_LOG_LINES:
+        return logs
+    return ["... (truncated) ..."] + logs[-MAX_BUILD_LOG_LINES:]
+
+
+def _assert_path_exists(container, path: str, *, workdir: str | None = None, expect_directory: bool) -> None:
+    flag = "-d" if expect_directory else "-f"
+    result = container.exec_run(["test", flag, path], workdir=workdir)
+    if result.exit_code != 0:
+        descriptor = "directory" if expect_directory else "file"
+        raise HTTPException(status_code=404, detail=f"Expected {descriptor} '{path}' not found in runner")
+
+
+def _default_image_tag(session_id: str) -> str:
+    return f"containrlab/session-{session_id[:12]}:latest"

@@ -37,6 +37,27 @@ class RunnerClient:
             response.raise_for_status()
             return response.json()
 
+    async def build(
+        self,
+        session_id: str,
+        *,
+        context_path: str = "/workspace",
+        dockerfile_path: str = "Dockerfile",
+        image_tag: str | None = None,
+        build_args: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "context_path": context_path,
+            "dockerfile_path": dockerfile_path,
+            "image_tag": image_tag,
+            "build_args": build_args or {},
+        }
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(f"{self._base_url}/build", json=payload)
+            response.raise_for_status()
+            return response.json()
+
 
 def get_runner_client() -> RunnerClient:
     """Convenience dependency for FastAPI injection."""
