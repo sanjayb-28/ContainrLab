@@ -64,6 +64,13 @@ class RunStopRequest(BaseModel):
     ignore_missing: bool = True
 
 
+class ExecRequest(BaseModel):
+    session_id: str
+    command: List[str]
+    workdir: str | None = None
+    environment: Dict[str, str] = Field(default_factory=dict)
+
+
 @app.get("/healthz")
 def healthz() -> dict[str, bool]:
     """Signal to the API layer that runnerd is reachable."""
@@ -225,6 +232,19 @@ def stop_run(payload: RunStopRequest) -> Dict[str, Any]:
     return {"ok": exit_code == 0, "stopped": exit_code == 0, "removed": removed, "logs": trimmed_logs}
 
 
+@app.post("/exec")
+def exec_in_runner(payload: ExecRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    logs, exit_code, elapsed = _exec_container_command(
+        container,
+        payload.command,
+        workdir=payload.workdir,
+        environment=payload.environment,
+    )
+    trimmed_logs = _trim_logs(logs)
+    return {"exit_code": exit_code, "logs": trimmed_logs, "elapsed_seconds": round(elapsed, 3)}
+
+
 def _container_name(session_id: str) -> str:
     return f"rl_sess_{session_id[:32]}"
 
@@ -291,7 +311,7 @@ def _build_tar(path: Path) -> bytes:
     data.seek(0)
     return data.read()
 
-def _exec_docker_command(
+def _exec_container_command(
     container,
     command: List[str],
     *,
@@ -313,6 +333,16 @@ def _exec_docker_command(
     exit_code = exec_result.exit_code or 0
     elapsed = time.time() - start
     return logs, exit_code, elapsed
+
+
+def _exec_docker_command(
+    container,
+    command: List[str],
+    *,
+    workdir: str | None = None,
+    environment: Dict[str, str] | None = None,
+) -> tuple[List[str], int, float]:
+    return _exec_container_command(container, command, workdir=workdir, environment=environment)
 
 
 def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[List[str], int, float]:

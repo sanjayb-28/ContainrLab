@@ -87,6 +87,25 @@ class RunnerClient:
             response.raise_for_status()
             return response.json()
 
+    async def exec(
+        self,
+        session_id: str,
+        *,
+        command: list[str],
+        workdir: str | None = None,
+        environment: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "command": command,
+            "workdir": workdir,
+            "environment": environment or {},
+        }
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(f"{self._base_url}/exec", json=payload)
+            response.raise_for_status()
+            return response.json()
+
     async def stop_run(
         self,
         session_id: str,

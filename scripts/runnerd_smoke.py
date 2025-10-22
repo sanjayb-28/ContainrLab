@@ -12,14 +12,17 @@ import urllib.request
 import uuid
 
 DEFAULT_BASE_URL = "http://localhost:8080"
+DEFAULT_API_BASE = "http://localhost:8000"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Runnerd smoke test")
     parser.add_argument("lab", help="Lab slug to seed", default="lab1", nargs="?")
     parser.add_argument("--base-url", dest="base_url", default=DEFAULT_BASE_URL)
+    parser.add_argument("--api-base", dest="api_base", default=None, help="Backend API base URL (enables judge check).")
     parser.add_argument("--skip-build", action="store_true", help="Skip build check")
     parser.add_argument("--skip-run", action="store_true", help="Skip runtime container check")
+    parser.add_argument("--skip-judge", action="store_true", help="Skip backend judge request even if API base is provided.")
     args = parser.parse_args()
 
     session_id = uuid.uuid4().hex
@@ -80,6 +83,17 @@ def main() -> int:
         )
         print("Run stop response:")
         print(json.dumps(stop_body, indent=2))
+
+    api_base = (args.api_base or "").rstrip("/")
+    if api_base and not args.skip_judge:
+        print("Invoking backend judge endpoint...")
+        judge_body = _post(
+            f"{api_base or DEFAULT_API_BASE}/labs/{args.lab}/check",
+            data={"session_id": session_id},
+            timeout=120,
+        )
+        print("Judge response:")
+        print(json.dumps(judge_body, indent=2))
 
     try:
         stop_body = _post(
