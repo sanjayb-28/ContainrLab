@@ -20,10 +20,12 @@ services:
       SQLITE_PATH: /data/app.db
       REDIS_URL: redis://redis:6379/0
       RUNNERD_BASE_URL: http://runnerd:8080
+      LABS_ROOT: /labs
     secrets:
       - gemini_key
     volumes:
       - ../sqlite:/data
+      - ../labs:/labs:ro
     depends_on:
       - redis
       - runnerd
