@@ -81,6 +81,8 @@ class InspectorResponse(BaseModel):
     last_attempt_at: str | None = None
     last_passed: bool | None = None
     metrics: Dict[str, Any] = Field(default_factory=dict)
+    previous_metrics: Dict[str, Any] | None = None
+    metric_deltas: Dict[str, float] = Field(default_factory=dict)
 
 
 @router.post("/{session_id}/build", response_model=BuildResponse)
@@ -206,13 +208,44 @@ async def inspect_session(
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
     attempts = storage.list_attempts(session_id)
-    latest = storage.latest_attempt(session_id)
-    metrics = latest["metrics"] if latest else {}
+    latest = attempts[0] if attempts else None
+    previous = attempts[1] if len(attempts) > 1 else None
+
+    current_metrics = latest["metrics"] if latest else {}
+    previous_metrics = previous["metrics"] if previous else None
+    deltas = _compute_metric_deltas(current_metrics, previous_metrics or {})
 
     return InspectorResponse(
         session_id=session_id,
         attempt_count=len(attempts),
         last_attempt_at=latest["created_at"] if latest else None,
         last_passed=latest["passed"] if latest else None,
-        metrics=metrics,
+        metrics=current_metrics,
+        previous_metrics=previous_metrics,
+        metric_deltas=deltas,
     )
+
+
+def _compute_metric_deltas(current: Dict[str, Any], previous: Dict[str, Any]) -> Dict[str, float]:
+    def flatten(source: Dict[str, Any], prefix: str = "", accumulator: Dict[str, float] | None = None) -> Dict[str, float]:
+        target: Dict[str, float] = accumulator if accumulator is not None else {}
+        for key, value in source.items():
+            path = f"{prefix}{key}" if not prefix else f"{prefix}.{key}"
+            if isinstance(value, dict):
+                flatten(value, path, target)
+            elif isinstance(value, (int, float)):
+                target[path] = float(value)
+        return target
+
+    flattened_current = flatten(current, accumulator={})
+    flattened_previous = flatten(previous, accumulator={}) if previous else {}
+
+    deltas: Dict[str, float] = {}
+    for key, current_value in flattened_current.items():
+        previous_value = flattened_previous.get(key)
+        if previous_value is None:
+            continue
+        delta = round(current_value - previous_value, 3)
+        if delta:
+            deltas[key] = delta
+    return deltas

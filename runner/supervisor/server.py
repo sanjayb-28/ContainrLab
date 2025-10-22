@@ -219,7 +219,7 @@ def build_image(payload: BuildRequest) -> dict[str, Any]:
     if exit_code != 0:
         raise HTTPException(status_code=500, detail={"error": "docker build failed", "logs": trimmed_logs})
 
-    metrics = _collect_image_metrics(container, image_tag, elapsed)
+    metrics = _collect_image_metrics(container, image_tag, elapsed, logs)
 
     return {"image_tag": image_tag, "logs": trimmed_logs, "metrics": metrics}
 
@@ -652,8 +652,12 @@ def _exec_docker_build(container, command: List[str], workdir: str) -> tuple[Lis
     return _exec_docker_command(container, command, workdir=workdir, environment={"DOCKER_BUILDKIT": "1"})
 
 
-def _collect_image_metrics(container, image_tag: str, elapsed: float) -> Dict[str, Any]:
+def _collect_image_metrics(container, image_tag: str, elapsed: float, build_logs: List[str]) -> Dict[str, Any]:
     metrics: Dict[str, Any] = {"elapsed_seconds": round(elapsed, 3)}
+
+    cache_hits = sum(1 for line in build_logs if "CACHED" in line.upper())
+    if cache_hits:
+        metrics["cache_hits"] = cache_hits
 
     size_result = container.exec_run(["docker", "image", "inspect", image_tag, "--format", "{{.Size}}"])  # type: ignore[list-item]
     if size_result.exit_code == 0:
@@ -666,10 +670,29 @@ def _collect_image_metrics(container, image_tag: str, elapsed: float) -> Dict[st
             metrics["image_size_bytes"] = size_bytes
             metrics["image_size_mb"] = round(size_bytes / (1024 * 1024), 2)
 
-    layers_result = container.exec_run(["docker", "history", image_tag, "--format", "{{.ID}}"])  # type: ignore[list-item]
+    layers_result = container.exec_run(["docker", "history", image_tag, "--format", "{{.ID}}|{{.Size}}|{{.CreatedBy}}" ])  # type: ignore[list-item]
     if layers_result.exit_code == 0:
-        entries = [line for line in layers_result.output.decode("utf-8", errors="replace").splitlines() if line.strip()]
-        metrics["layer_count"] = len(entries)
+        entries_raw = [line for line in layers_result.output.decode("utf-8", errors="replace").splitlines() if line.strip()]
+        metrics["layer_count"] = len(entries_raw)
+        layers: List[Dict[str, Any]] = []
+        for item in entries_raw:
+            parts = item.split("|", maxsplit=2)
+            layer_id = parts[0]
+            size_str = parts[1] if len(parts) > 1 else ""
+            command = parts[2] if len(parts) > 2 else ""
+            layer: Dict[str, Any] = {"id": layer_id}
+            try:
+                size_bytes = int(size_str)
+            except ValueError:
+                size_bytes = None
+            if size_bytes is not None:
+                layer["size_bytes"] = size_bytes
+                layer["size_mb"] = round(size_bytes / (1024 * 1024), 2)
+            if command:
+                layer["created_by"] = command.strip()[:160]
+            layers.append(layer)
+        if layers:
+            metrics["layers"] = layers
 
     return metrics
 
