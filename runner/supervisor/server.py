@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import io
 import json
 import os
+import shlex
 import tarfile
 import time
 from pathlib import Path
@@ -27,6 +30,24 @@ PIDS_LIMIT = int(os.getenv("RUNNER_PIDS_LIMIT", "1024"))
 SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
 MAX_LOG_LINES = 200
 DEFAULT_SHELL = os.getenv("RUNNER_DEFAULT_SHELL", "/bin/sh")
+WORKSPACE_ROOT = "/workspace"
+LISTING_SCRIPT = """
+import json, os, sys, time
+root = sys.argv[1]
+entries = []
+if os.path.exists(root):
+    for name in sorted(os.listdir(root)):
+        full = os.path.join(root, name)
+        info = {
+            "name": name,
+            "path": os.path.join(root, name),
+            "is_dir": os.path.isdir(full),
+            "size": os.path.getsize(full) if os.path.isfile(full) else None,
+            "modified": os.path.getmtime(full),
+        }
+        entries.append(info)
+print(json.dumps({"entries": entries, "exists": os.path.exists(root), "is_dir": os.path.isdir(root)}))
+"""
 
 
 class StartRequest(BaseModel):
@@ -72,6 +93,23 @@ class ExecRequest(BaseModel):
     command: List[str]
     workdir: str | None = None
     environment: Dict[str, str] = Field(default_factory=dict)
+
+
+class FsListRequest(BaseModel):
+    session_id: str
+    path: str | None = None
+
+
+class FsReadRequest(BaseModel):
+    session_id: str
+    path: str
+
+
+class FsWriteRequest(BaseModel):
+    session_id: str
+    path: str
+    content: str
+    encoding: str = "base64"
 
 
 @app.get("/healthz")
@@ -335,6 +373,89 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
         await websocket.close()
 
 
+@app.post("/fs/list")
+def list_path(payload: FsListRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    target = _sanitize_workspace_path(payload.path or WORKSPACE_ROOT)
+    command = [
+        "python3",
+        "-c",
+        LISTING_SCRIPT,
+        target,
+    ]
+    logs, exit_code, _ = _exec_container_command(container, command)
+    if exit_code != 0:
+        raise HTTPException(status_code=500, detail="Failed to list directory")
+    try:
+        listing = json.loads("\n".join(logs))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=500, detail="Invalid listing payload") from exc
+    if not listing.get("exists"):
+        raise HTTPException(status_code=404, detail="Path not found")
+    return listing
+
+
+@app.post("/fs/read")
+def read_file(payload: FsReadRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    target = _sanitize_workspace_path(payload.path)
+    try:
+        stream, stat = container.get_archive(target)
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail="File not found") from exc
+    except APIError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {exc.explanation}") from exc
+
+    data = io.BytesIO()
+    for chunk in stream:
+        data.write(chunk)
+    data.seek(0)
+    with tarfile.open(fileobj=data, mode="r:") as tar:
+        member = tar.next()
+        if member is None or not member.isfile():
+            raise HTTPException(status_code=400, detail="Target is not a regular file")
+        extracted = tar.extractfile(member)
+        if extracted is None:
+            raise HTTPException(status_code=500, detail="Failed to extract file content")
+        content_bytes = extracted.read()
+    return {
+        "path": target,
+        "encoding": "base64",
+        "content": base64.b64encode(content_bytes).decode("ascii"),
+    }
+
+
+@app.post("/fs/write")
+def write_file(payload: FsWriteRequest) -> Dict[str, Any]:
+    if payload.encoding != "base64":
+        raise HTTPException(status_code=400, detail="Only base64 encoding is supported")
+    try:
+        raw_bytes = base64.b64decode(payload.content)
+    except (ValueError, binascii.Error) as exc:  # type: ignore[name-defined]
+        raise HTTPException(status_code=400, detail="Invalid base64 payload") from exc
+
+    container = _get_running_container(payload.session_id)
+    target = _sanitize_workspace_path(payload.path)
+    directory = os.path.dirname(target) or WORKSPACE_ROOT
+
+    mkdir_cmd = ["sh", "-c", f"mkdir -p {shlex.quote(directory)}"]
+    result = container.exec_run(mkdir_cmd)
+    if result.exit_code not in (0, None):
+        raise HTTPException(status_code=500, detail="Failed to prepare directory")
+
+    tarstream = io.BytesIO()
+    with tarfile.open(fileobj=tarstream, mode="w") as tar:
+        info = tarfile.TarInfo(name=os.path.basename(target))
+        info.size = len(raw_bytes)
+        info.mtime = int(time.time())
+        tar.addfile(info, io.BytesIO(raw_bytes))
+    tarstream.seek(0)
+    success = container.put_archive(directory, tarstream.getvalue())
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to write file")
+    return {"ok": True, "path": target}
+
+
 def _container_name(session_id: str) -> str:
     return f"rl_sess_{session_id[:32]}"
 
@@ -496,3 +617,16 @@ def _inner_container_exists(container, name: str) -> bool:
     if result.exit_code != 0:
         return False
     return bool((result.output or b"").decode("utf-8", errors="replace").strip())
+
+
+def _sanitize_workspace_path(path: str) -> str:
+    raw = path or WORKSPACE_ROOT
+    if raw.startswith("/"):
+        normalized = os.path.normpath(raw)
+    else:
+        normalized = os.path.normpath(os.path.join(WORKSPACE_ROOT, raw))
+    if not normalized.startswith(WORKSPACE_ROOT):
+        raise HTTPException(status_code=400, detail="Path escapes workspace root")
+    if normalized == "/":
+        return WORKSPACE_ROOT
+    return normalized

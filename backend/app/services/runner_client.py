@@ -127,6 +127,38 @@ class RunnerClient:
             response.raise_for_status()
             return response.json()
 
+    async def list_path(self, session_id: str, path: str | None = None) -> dict[str, Any]:
+        payload = {"session_id": session_id, "path": path}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/list", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def read_file(self, session_id: str, path: str) -> dict[str, Any]:
+        payload = {"session_id": session_id, "path": path}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/read", json=payload)
+            response.raise_for_status()
+            return response.json()
+
+    async def write_file(
+        self,
+        session_id: str,
+        *,
+        path: str,
+        content_b64: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "session_id": session_id,
+            "path": path,
+            "content": content_b64,
+            "encoding": "base64",
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{self._base_url}/fs/write", json=payload)
+            response.raise_for_status()
+            return response.json()
+
 
 def get_runner_client() -> RunnerClient:
     """Convenience dependency for FastAPI injection."""
