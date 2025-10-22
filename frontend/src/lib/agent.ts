@@ -24,15 +24,17 @@ function buildPayload(sessionId: string, prompt: string, labSlug?: string): Agen
 export async function requestHint(
   sessionId: string,
   prompt: string,
-  labSlug?: string
+  labSlug?: string,
+  init?: RequestInit
 ): Promise<AgentResponse> {
-  return apiPost("/agent/hint", buildPayload(sessionId, prompt, labSlug));
+  return apiPost("/agent/hint", buildPayload(sessionId, prompt, labSlug), init);
 }
 
 export async function requestExplain(
   sessionId: string,
   prompt: string,
-  labSlug?: string
+  labSlug?: string,
+  init?: RequestInit
 ): Promise<AgentResponse> {
-  return apiPost("/agent/explain", buildPayload(sessionId, prompt, labSlug));
+  return apiPost("/agent/explain", buildPayload(sessionId, prompt, labSlug), init);
 }

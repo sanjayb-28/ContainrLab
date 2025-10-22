@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { requestExplain, requestHint, type AgentResponse } from "@/lib/agent";
 
 type AgentMode = "hint" | "explain";
@@ -20,6 +20,8 @@ type AgentDrawerProps = {
   labSlug?: string;
 };
 
+const MAX_HISTORY = 15;
+
 function createEntryId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
@@ -27,11 +29,27 @@ function createEntryId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+async function copyToClipboard(text: string | undefined) {
+  if (!text) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    console.warn("Clipboard copy failed", err);
+  }
+}
+
 export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<AgentHistoryEntry[]>([]);
   const [loadingMode, setLoadingMode] = useState<AgentMode | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +57,12 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
     setHistory([]);
     setError(null);
     setLoadingMode(null);
+    setAbortController((current) => {
+      if (current) {
+        current.abort();
+      }
+      return null;
+    });
   }, [sessionId]);
 
   const disabled = !sessionId || loadingMode !== null;
@@ -57,61 +81,124 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
     return `Last response from ${latest.source} at ${new Date(latest.timestamp).toLocaleTimeString()}.`;
   }, [latest, loadingMode]);
 
-  const handleSuccess = (mode: AgentMode, requestPrompt: string, response: AgentResponse) => {
-    const entry: AgentHistoryEntry = {
-      id: createEntryId(),
-      mode,
-      prompt: requestPrompt,
-      answer: response.answer,
-      source: response.source,
-      timestamp: Date.now(),
-    };
-    setHistory((prev) => [entry, ...prev]);
-    setError(null);
-    setPrompt("");
-  };
+  const pushHistory = useCallback((entry: AgentHistoryEntry) => {
+    setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
+  }, []);
 
-  const handleFailure = (mode: AgentMode, requestPrompt: string, message: string) => {
-    const entry: AgentHistoryEntry = {
-      id: createEntryId(),
-      mode,
-      prompt: requestPrompt,
-      source: "error",
-      error: message,
-      timestamp: Date.now(),
-    };
-    setHistory((prev) => [entry, ...prev]);
-    setError(message);
-  };
+  const handleSuccess = useCallback(
+    (mode: AgentMode, requestPrompt: string, response: AgentResponse) => {
+      const entry: AgentHistoryEntry = {
+        id: createEntryId(),
+        mode,
+        prompt: requestPrompt,
+        answer: response.answer,
+        source: response.source,
+        timestamp: Date.now(),
+      };
+      pushHistory(entry);
+      setError(null);
+      setPrompt("");
+    },
+    [pushHistory]
+  );
 
-  const sendRequest = async (mode: AgentMode) => {
-    if (!sessionId) {
-      return;
-    }
-    if (!prompt.trim()) {
-      setError("Enter a prompt first.");
-      return;
-    }
-    setLoadingMode(mode);
-    setError(null);
-    setOpen(true);
-    const trimmedPrompt = prompt.trim();
-    try {
-      const response =
-        mode === "hint"
-          ? await requestHint(sessionId, trimmedPrompt, labSlug)
-          : await requestExplain(sessionId, trimmedPrompt, labSlug);
-      handleSuccess(mode, trimmedPrompt, response);
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message
-          ? err.message
-          : "Agent request failed. Please try again.";
-      handleFailure(mode, trimmedPrompt, message);
-    } finally {
+  const handleFailure = useCallback(
+    (mode: AgentMode, requestPrompt: string, message: string) => {
+      const entry: AgentHistoryEntry = {
+        id: createEntryId(),
+        mode,
+        prompt: requestPrompt,
+        source: "error",
+        error: message,
+        timestamp: Date.now(),
+      };
+      pushHistory(entry);
+      setError(message);
+    },
+    [pushHistory]
+  );
+
+  const executeRequest = useCallback(
+    async (mode: AgentMode, requestPrompt: string) => {
+      if (!sessionId) {
+        return;
+      }
+      const trimmedPrompt = requestPrompt.trim();
+      if (!trimmedPrompt) {
+        setError("Enter a prompt first.");
+        return;
+      }
+      if (loadingMode) {
+        return;
+      }
+
+      const controller = new AbortController();
+      setAbortController(controller);
+      setLoadingMode(mode);
+      setError(null);
+      setOpen(true);
+
+      const init: RequestInit = { signal: controller.signal };
+
+      try {
+        const response =
+          mode === "hint"
+            ? await requestHint(sessionId, trimmedPrompt, labSlug, init)
+            : await requestExplain(sessionId, trimmedPrompt, labSlug, init);
+        handleSuccess(mode, trimmedPrompt, response);
+      } catch (err) {
+        if (isAbortError(err)) {
+          setError(null);
+        } else {
+          const message = err instanceof Error && err.message ? err.message : "Agent request failed. Please try again.";
+          handleFailure(mode, trimmedPrompt, message);
+        }
+      } finally {
+        setLoadingMode((current) => (current === mode ? null : current));
+        setAbortController((current) => {
+          if (current === controller) {
+            return null;
+          }
+          return current;
+        });
+      }
+    },
+    [handleFailure, handleSuccess, labSlug, loadingMode, sessionId]
+  );
+
+  const handleSend = useCallback(
+    (mode: AgentMode) => {
+      void executeRequest(mode, prompt);
+    },
+    [executeRequest, prompt]
+  );
+
+  const handleCancel = useCallback(() => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
       setLoadingMode(null);
     }
-  };
+  }, [abortController]);
+
+  const handleResend = useCallback(
+    (entry: AgentHistoryEntry) => {
+      if (loadingMode) {
+        return;
+      }
+      setPrompt(entry.prompt);
+      void executeRequest(entry.mode, entry.prompt);
+    },
+    [executeRequest, loadingMode]
+  );
+
+  const handleCopyAnswer = useCallback((entry: AgentHistoryEntry) => {
+    void copyToClipboard(entry.answer);
+  }, []);
+
+  const handleCopyPrompt = useCallback((entry: AgentHistoryEntry) => {
+    void copyToClipboard(entry.prompt);
+  }, []);
 
   return (
     <aside className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
@@ -159,7 +246,7 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
             <button
               type="button"
               className="rounded bg-sky-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => sendRequest("hint")}
+              onClick={() => handleSend("hint")}
               disabled={disabled}
             >
               {loadingMode === "hint" ? "Sending..." : "Ask for hint"}
@@ -167,11 +254,20 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
             <button
               type="button"
               className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => sendRequest("explain")}
+              onClick={() => handleSend("explain")}
               disabled={disabled}
             >
               {loadingMode === "explain" ? "Sending..." : "Ask for explain"}
             </button>
+            {loadingMode && (
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="rounded border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+            )}
           </div>
           {error && <p className="text-red-300">{error}</p>}
 
@@ -206,6 +302,31 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
                       {entry.answer ?? "No response available."}
                     </p>
                   )}
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800"
+                      onClick={() => handleResend(entry)}
+                      disabled={Boolean(loadingMode)}
+                    >
+                      Resend
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => handleCopyAnswer(entry)}
+                      disabled={!entry.answer}
+                    >
+                      Copy answer
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800"
+                      onClick={() => handleCopyPrompt(entry)}
+                    >
+                      Copy prompt
+                    </button>
+                  </div>
                 </div>
               ))
             )}
