@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import WorkspacePane from "@/components/WorkspacePane";
 import InspectorPanel from "@/components/InspectorPanel";
+import AgentDrawer from "@/components/AgentDrawer";
 import { notFound } from "next/navigation";
 import LabActions from "@/components/LabActions";
 import Terminal from "@/components/Terminal";
@@ -81,10 +82,11 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
       <LabActions slug={params.slug} initialSession={session} />
       <WorkspacePane sessionId={session?.session_id} />
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-        <InspectorPanel sessionId={session?.session_id} />
-      </div>
-      <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-100">Terminal</h2>
+      <InspectorPanel sessionId={session?.session_id} />
+    </div>
+    <AgentDrawer sessionId={session?.session_id} />
+    <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
+      <h2 className="mb-3 text-lg font-semibold text-slate-100">Terminal</h2>
         <p className="text-sm text-slate-400">
           Connected to session: {session?.session_id ?? "(start a session to use the terminal)"}
         </p>

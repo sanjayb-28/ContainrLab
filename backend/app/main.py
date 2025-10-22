@@ -3,7 +3,7 @@ import os
 import httpx  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
 
-from .routers import files, labs, sessions, terminal
+from .routers import agent, files, labs, sessions, terminal
 from .services.storage import get_storage
 
 app = FastAPI(title="DockrLearn API")
@@ -14,6 +14,7 @@ app.include_router(labs.router)
 app.include_router(sessions.router)
 app.include_router(files.router)
 app.include_router(terminal.router)
+app.include_router(agent.router)
 
 
 @app.get("/healthz")
