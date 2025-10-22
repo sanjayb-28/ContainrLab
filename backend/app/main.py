@@ -4,6 +4,7 @@ import httpx  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
 
 from .routers import labs, sessions
+from .services.storage import get_storage
 
 app = FastAPI(title="DockrLearn API")
 
@@ -30,3 +31,8 @@ async def runnerd_healthz() -> dict:
     except httpx.HTTPError as exc:  # pragma: no cover - trivial passthrough
         raise HTTPException(status_code=502, detail=f"runnerd health check failed: {exc}") from exc
     return response.json()
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    get_storage()
