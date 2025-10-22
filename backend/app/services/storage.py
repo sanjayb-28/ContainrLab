@@ -172,6 +172,32 @@ class Storage:
             )
         return attempts
 
+    def latest_attempt(self, session_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT id, session_id, lab_slug, created_at, passed, failures, metrics, notes
+                FROM attempts
+                WHERE session_id = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (session_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row["id"],
+            "session_id": row["session_id"],
+            "lab_slug": row["lab_slug"],
+            "created_at": row["created_at"],
+            "passed": bool(row["passed"]),
+            "failures": json.loads(row["failures"]) if row["failures"] else [],
+            "metrics": json.loads(row["metrics"]) if row["metrics"] else {},
+            "notes": json.loads(row["notes"]) if row["notes"] else {},
+        }
+
 
 @lru_cache
 def get_storage() -> Storage:

@@ -75,6 +75,14 @@ class SessionDetailResponse(BaseModel):
     attempts: list[AttemptEntry]
 
 
+class InspectorResponse(BaseModel):
+    session_id: str
+    attempt_count: int
+    last_attempt_at: str | None = None
+    last_passed: bool | None = None
+    metrics: Dict[str, Any] = Field(default_factory=dict)
+
+
 @router.post("/{session_id}/build", response_model=BuildResponse)
 async def build_session_image(
     session_id: str,
@@ -185,4 +193,26 @@ async def get_session_detail(
         ttl_seconds=session["ttl_seconds"],
         created_at=session["created_at"],
         attempts=attempt_models,
+    )
+
+
+@router.get("/{session_id}/inspector", response_model=InspectorResponse)
+async def inspect_session(
+    session_id: str,
+    storage: Storage = Depends(get_storage),
+) -> InspectorResponse:
+    session = storage.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+
+    attempts = storage.list_attempts(session_id)
+    latest = storage.latest_attempt(session_id)
+    metrics = latest["metrics"] if latest else {}
+
+    return InspectorResponse(
+        session_id=session_id,
+        attempt_count=len(attempts),
+        last_attempt_at=latest["created_at"] if latest else None,
+        last_passed=latest["passed"] if latest else None,
+        metrics=metrics,
     )
