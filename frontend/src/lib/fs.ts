@@ -1,6 +1,6 @@
 import { apiGet, apiPost } from "@/lib/api";
 
-type FsEntry = {
+export type FsEntry = {
   name: string;
   path: string;
   is_dir: boolean;
@@ -11,6 +11,8 @@ type FsEntry = {
 export type ListResponse = {
   path: string;
   entries: FsEntry[];
+  exists: boolean;
+  is_dir: boolean;
 };
 
 export async function listPath(sessionId: string, path?: string): Promise<ListResponse> {
@@ -41,6 +43,40 @@ export async function writeFile(
     path,
     content: contentBase64,
     encoding: "base64",
+  });
+}
+
+export async function createEntry(
+  sessionId: string,
+  path: string,
+  kind: "file" | "directory",
+  contentBase64?: string
+): Promise<void> {
+  await apiPost(`/fs/create`, {
+    session_id: sessionId,
+    path,
+    kind,
+    content: kind === "file" ? contentBase64 ?? "" : undefined,
+    encoding: "base64",
+  });
+}
+
+export async function renameEntry(
+  sessionId: string,
+  path: string,
+  newPath: string
+): Promise<void> {
+  await apiPost(`/fs/rename`, {
+    session_id: sessionId,
+    path,
+    new_path: newPath,
+  });
+}
+
+export async function deleteEntry(sessionId: string, path: string): Promise<void> {
+  await apiPost(`/fs/delete`, {
+    session_id: sessionId,
+    path,
   });
 }
 

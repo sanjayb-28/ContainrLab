@@ -10,7 +10,7 @@ import shlex
 import tarfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Literal
 
 import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
@@ -110,6 +110,25 @@ class FsWriteRequest(BaseModel):
     path: str
     content: str
     encoding: str = "base64"
+
+
+class FsCreateRequest(BaseModel):
+    session_id: str
+    path: str
+    kind: Literal["file", "directory"] = "file"
+    content: str | None = None
+    encoding: str = "base64"
+
+
+class FsRenameRequest(BaseModel):
+    session_id: str
+    path: str
+    new_path: str
+
+
+class FsDeleteRequest(BaseModel):
+    session_id: str
+    path: str
 
 
 @app.get("/healthz")
@@ -392,6 +411,7 @@ def list_path(payload: FsListRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Invalid listing payload") from exc
     if not listing.get("exists"):
         raise HTTPException(status_code=404, detail="Path not found")
+    listing["path"] = target
     return listing
 
 
@@ -436,6 +456,79 @@ def write_file(payload: FsWriteRequest) -> Dict[str, Any]:
 
     container = _get_running_container(payload.session_id)
     target = _sanitize_workspace_path(payload.path)
+    _write_bytes(container, target, raw_bytes)
+    return {"ok": True, "path": target}
+
+
+@app.post("/fs/create")
+def create_entry(payload: FsCreateRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    target = _sanitize_workspace_path(payload.path)
+
+    if payload.kind == "directory":
+        mkdir_cmd = ["sh", "-c", f"mkdir -p {shlex.quote(target)}"]
+        result = container.exec_run(mkdir_cmd)
+        if result.exit_code not in (0, None):
+            raise HTTPException(status_code=500, detail="Failed to create directory")
+        return {"ok": True, "path": target, "kind": "directory"}
+
+    if payload.encoding != "base64":
+        raise HTTPException(status_code=400, detail="Only base64 encoding is supported")
+    try:
+        raw_bytes = base64.b64decode(payload.content or "")
+    except (ValueError, binascii.Error) as exc:  # type: ignore[name-defined]
+        raise HTTPException(status_code=400, detail="Invalid base64 payload") from exc
+
+    _write_bytes(container, target, raw_bytes)
+    return {"ok": True, "path": target, "kind": "file"}
+
+
+@app.post("/fs/rename")
+def rename_entry(payload: FsRenameRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    source = _sanitize_workspace_path(payload.path)
+    destination = _sanitize_workspace_path(payload.new_path)
+
+    if source == destination:
+        raise HTTPException(status_code=400, detail="Source and destination paths are identical")
+
+    exists = container.exec_run(["test", "-e", source])
+    if exists.exit_code not in (0, None):
+        raise HTTPException(status_code=404, detail="Source path not found")
+
+    dest_parent = os.path.dirname(destination) or WORKSPACE_ROOT
+    parent_result = container.exec_run(["sh", "-c", f"mkdir -p {shlex.quote(dest_parent)}"])
+    if parent_result.exit_code not in (0, None):
+        raise HTTPException(status_code=500, detail="Failed to prepare destination directory")
+
+    result = container.exec_run(["sh", "-c", f"mv {shlex.quote(source)} {shlex.quote(destination)}"])
+    if result.exit_code not in (0, None):
+        raise HTTPException(status_code=500, detail="Failed to rename path")
+
+    return {"ok": True, "path": source, "new_path": destination}
+
+
+@app.post("/fs/delete")
+def delete_entry(payload: FsDeleteRequest) -> Dict[str, Any]:
+    container = _get_running_container(payload.session_id)
+    target = _sanitize_workspace_path(payload.path)
+
+    if target == WORKSPACE_ROOT:
+        raise HTTPException(status_code=400, detail="Cannot delete workspace root")
+
+    exists = container.exec_run(["test", "-e", target])
+    if exists.exit_code not in (0, None):
+        raise HTTPException(status_code=404, detail="Path not found")
+
+    command = ["sh", "-c", f"rm -rf {shlex.quote(target)}"]
+    result = container.exec_run(command)
+    if result.exit_code not in (0, None):
+        raise HTTPException(status_code=500, detail="Failed to delete path")
+
+    return {"ok": True, "path": target}
+
+
+def _write_bytes(container, target: str, raw_bytes: bytes) -> None:
     directory = os.path.dirname(target) or WORKSPACE_ROOT
 
     mkdir_cmd = ["sh", "-c", f"mkdir -p {shlex.quote(directory)}"]
@@ -453,7 +546,6 @@ def write_file(payload: FsWriteRequest) -> Dict[str, Any]:
     success = container.put_archive(directory, tarstream.getvalue())
     if not success:
         raise HTTPException(status_code=500, detail="Failed to write file")
-    return {"ok": True, "path": target}
 
 
 def _container_name(session_id: str) -> str:
