@@ -14,7 +14,8 @@ services:
 
   api:
     build:
-      context: ../backend
+      context: ..
+      dockerfile: backend/Dockerfile
     environment:
       GEMINI_API_KEY_FILE: /run/secrets/gemini_key
       SQLITE_PATH: /data/app.db
@@ -26,6 +27,8 @@ services:
     volumes:
       - ../sqlite:/data
       - ../labs:/labs:ro
+    ports:
+      - "8000:8000"  # expose API locally for smoke tests and UI development
     depends_on:
       - redis
       - runnerd

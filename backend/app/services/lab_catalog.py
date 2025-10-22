@@ -6,12 +6,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-DEFAULT_LABS_ROOT = Path(
-    os.getenv(
-        "LABS_ROOT",
-        Path(__file__).resolve().parents[4] / "labs",
-    )
-).resolve()
+_env_labs_root = os.getenv("LABS_ROOT")
+if _env_labs_root:
+    DEFAULT_LABS_ROOT = Path(_env_labs_root).resolve()
+else:
+    DEFAULT_LABS_ROOT = (Path(__file__).resolve().parents[2] / "labs").resolve()
 
 
 @dataclass(slots=True)
