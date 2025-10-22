@@ -30,6 +30,14 @@ export type SessionDetail = {
   attempts: SessionAttempt[];
 };
 
+export type InspectorSummary = {
+  session_id: string;
+  attempt_count: number;
+  last_attempt_at?: string | null;
+  last_passed?: boolean | null;
+  metrics: Record<string, unknown>;
+};
+
 export async function fetchLabs(): Promise<LabSummary[]> {
   return apiGet("/labs");
 }
@@ -40,4 +48,8 @@ export async function fetchLab(slug: string): Promise<LabDetail> {
 
 export async function fetchSession(sessionId: string): Promise<SessionDetail> {
   return apiGet(`/sessions/${sessionId}`);
+}
+
+export async function fetchInspector(sessionId: string): Promise<InspectorSummary> {
+  return apiGet(`/sessions/${sessionId}/inspector`);
 }
