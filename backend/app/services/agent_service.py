@@ -6,11 +6,16 @@ import os
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Callable, Deque, Dict, Optional
+from typing import Any, Callable, Deque, Dict, Optional
 
 import httpx  # type: ignore[import]
 
 logger = logging.getLogger("containrlab.agent")
+
+
+def _log(level: int, message: str, metadata: Dict[str, Any], **extra: Any) -> None:
+    payload = {**metadata, **extra}
+    logger.log(level, message, extra=payload)
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")
 DEFAULT_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
@@ -165,12 +170,12 @@ class AgentService:
             raise ValueError("Prompt cannot be empty")
 
         if not self._enabled:
-            logger.info("Gemini disabled, returning stub response", extra=metadata)
+            _log(logging.INFO, "Gemini disabled; returning stub response", metadata, event="stub_fallback", source="stub")
             return AgentResult(answer=fallback, source="stub")
 
         allowed = await self._rate_limiter.allow(session_id)
         if not allowed:
-            logger.info("Gemini rate limit hit", extra=metadata)
+            _log(logging.INFO, "Gemini rate limit hit", metadata, event="rate_limit")
             raise AgentRateLimitError("Too many agent requests. Please try again shortly.")
 
         request_body = {
@@ -187,23 +192,44 @@ class AgentService:
             },
         }
 
+        start_time = time.perf_counter()
+        failure_reason: str | None = None
+
         try:
+            _log(logging.INFO, "Gemini request dispatched", metadata, event="request_start")
             response_data = await self._invoke(request_body)
             answer = self._extract_text(response_data)
             if not answer:
                 raise AgentServiceError("Gemini response did not include text content")
-            logger.info(
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            _log(
+                logging.INFO,
                 "Gemini response received",
-                extra={**metadata, "response_chars": len(answer), "source": "gemini"},
+                metadata,
+                event="response",
+                source="gemini",
+                duration_ms=duration_ms,
+                response_chars=len(answer),
             )
             return AgentResult(answer=answer, source="gemini")
         except AgentServiceError as exc:
-            logger.warning("Gemini service error: %s", exc, extra=metadata)
+            failure_reason = str(exc)
+            _log(logging.WARNING, "Gemini service error", metadata, event="service_error", error=str(exc))
         except httpx.HTTPError as exc:
-            logger.warning("Gemini request failed: %s", exc, extra=metadata)
+            failure_reason = str(exc)
+            _log(logging.WARNING, "Gemini request failed", metadata, event="http_error", error=str(exc))
         except Exception as exc:  # pragma: no cover - safeguard against unexpected errors
-            logger.exception("Unexpected Gemini failure", extra=metadata)
+            failure_reason = str(exc)
+            logger.exception("Unexpected Gemini failure", extra={**metadata, "event": "unexpected_error"})
 
+        _log(
+            logging.INFO,
+            "Using fallback response",
+            metadata,
+            event="fallback",
+            source="fallback",
+            fallback_reason=failure_reason or "unknown",
+        )
         return AgentResult(answer=fallback, source="fallback")
 
     async def _invoke(self, payload: Dict[str, object]) -> Dict[str, object]:
