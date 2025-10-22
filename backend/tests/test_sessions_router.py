@@ -74,7 +74,17 @@ def test_inspector_endpoint(tmp_path: Path) -> None:
         result=JudgeResult(
             passed=False,
             failures=[JudgeFailure(code="fail", message="oops")],
-            metrics={"image_size_mb": 42.1},
+            metrics={"build": {"image_size_mb": 48.0, "elapsed_seconds": 32.5}},
+            notes={},
+        ),
+    )
+    storage.record_attempt(
+        session_id=session_id,
+        lab_slug="lab1",
+        result=JudgeResult(
+            passed=False,
+            failures=[JudgeFailure(code="fail", message="oops")],
+            metrics={"build": {"image_size_mb": 42.1, "elapsed_seconds": 28.0, "cache_hits": 3}},
             notes={},
         ),
     )
@@ -83,8 +93,10 @@ def test_inspector_endpoint(tmp_path: Path) -> None:
     response = client.get(f"/sessions/{session_id}/inspector")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["attempt_count"] == 1
-    assert payload["metrics"]["image_size_mb"] == 42.1
+    assert payload["attempt_count"] == 2
+    assert payload["metrics"]["build"]["image_size_mb"] == 42.1
+    assert payload["previous_metrics"]["build"]["image_size_mb"] == 48.0
+    assert payload["metric_deltas"]["build.image_size_mb"] == -5.9
     assert payload["last_passed"] is False
 
     app.dependency_overrides.clear()

@@ -36,6 +36,8 @@ export type InspectorSummary = {
   last_attempt_at?: string | null;
   last_passed?: boolean | null;
   metrics: Record<string, unknown>;
+  previous_metrics?: Record<string, unknown> | null;
+  metric_deltas?: Record<string, number>;
 };
 
 export async function fetchLabs(): Promise<LabSummary[]> {
