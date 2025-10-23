@@ -22,6 +22,7 @@ class LabStartResponse(BaseModel):
     session_id: str
     ttl: int
     runner_container: str
+    expires_at: str
 
 
 class LabListItem(BaseModel):
@@ -73,7 +74,7 @@ async def start_lab(
         raise HTTPException(status_code=502, detail="Runner response missing container reference")
 
     try:
-        storage.record_session(
+        session_record = storage.record_session(
             session_id=session_id,
             lab_slug=lab_slug,
             runner_container=container_name,
@@ -82,7 +83,13 @@ async def start_lab(
     except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return LabStartResponse(session_id=session_id, ttl=SESSION_TTL_SECONDS, runner_container=container_name)
+    expires_at = session_record["expires_at"]
+    return LabStartResponse(
+        session_id=session_id,
+        ttl=SESSION_TTL_SECONDS,
+        runner_container=container_name,
+        expires_at=expires_at,
+    )
 
 
 @router.get("", response_model=list[LabListItem])

@@ -72,6 +72,8 @@ class SessionDetailResponse(BaseModel):
     runner_container: str
     ttl_seconds: int
     created_at: str
+    expires_at: str
+    ended_at: str | None = None
     attempts: list[AttemptEntry]
 
 
@@ -194,6 +196,8 @@ async def get_session_detail(
         runner_container=session["runner_container"],
         ttl_seconds=session["ttl_seconds"],
         created_at=session["created_at"],
+        expires_at=session["expires_at"],
+        ended_at=session.get("ended_at"),
         attempts=attempt_models,
     )
 
