@@ -5,7 +5,7 @@ import os
 import sqlite3
 import threading
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -55,7 +55,9 @@ class Storage:
             lab_slug TEXT NOT NULL,
             runner_container TEXT NOT NULL,
             ttl_seconds INTEGER NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            ended_at TEXT
         );
         CREATE TABLE IF NOT EXISTS attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,6 +75,8 @@ class Storage:
         try:
             with self._lock:
                 self._connection.executescript(schema)
+                self._ensure_column("sessions", "expires_at", "ALTER TABLE sessions ADD COLUMN expires_at TEXT")
+                self._ensure_column("sessions", "ended_at", "ALTER TABLE sessions ADD COLUMN ended_at TEXT")
                 self._connection.commit()
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to initialise database schema: {exc}") from exc
@@ -84,20 +88,22 @@ class Storage:
         lab_slug: str,
         runner_container: str,
         ttl_seconds: int,
-    ) -> None:
+    ) -> dict[str, str]:
         created_at = _utc_now()
+        expires_at = (datetime.fromisoformat(created_at) + timedelta(seconds=ttl_seconds)).isoformat()
         try:
             with self._lock:
                 self._connection.execute(
                     """
-                    INSERT OR REPLACE INTO sessions (session_id, lab_slug, runner_container, ttl_seconds, created_at)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO sessions (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (session_id, lab_slug, runner_container, ttl_seconds, created_at),
+                    (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, None),
                 )
                 self._connection.commit()
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to persist session '{session_id}': {exc}") from exc
+        return {"created_at": created_at, "expires_at": expires_at}
 
     def record_attempt(
         self,
@@ -132,7 +138,11 @@ class Storage:
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             cursor = self._connection.execute(
-                "SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at FROM sessions WHERE session_id = ?",
+                """
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at
+                FROM sessions
+                WHERE session_id = ?
+                """,
                 (session_id,),
             )
             row = cursor.fetchone()
@@ -197,6 +207,43 @@ class Storage:
             "metrics": json.loads(row["metrics"]) if row["metrics"] else {},
             "notes": json.loads(row["notes"]) if row["notes"] else {},
         }
+
+    def list_expired_sessions(self, before: datetime | None = None) -> List[Dict[str, Any]]:
+        cutoff = (before or datetime.now(timezone.utc)).isoformat()
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at
+                FROM sessions
+                WHERE ended_at IS NULL
+                AND expires_at IS NOT NULL
+                AND expires_at <= ?
+                """,
+                (cutoff,),
+            )
+            rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_session_ended(self, session_id: str, *, ended_at: str | None = None) -> bool:
+        ended_value = ended_at or _utc_now()
+        try:
+            with self._lock:
+                cursor = self._connection.execute(
+                    "UPDATE sessions SET ended_at = ? WHERE session_id = ? AND ended_at IS NULL",
+                    (ended_value, session_id),
+                )
+                self._connection.commit()
+        except sqlite3.Error as exc:
+            raise StorageError(f"Failed to mark session '{session_id}' as ended: {exc}") from exc
+        return cursor.rowcount > 0
+
+    def _ensure_column(self, table: str, column: str, statement: str) -> None:
+        """Add a column to an existing table if it is missing."""
+        cursor = self._connection.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cursor.fetchall()}
+        if column in existing:
+            return
+        self._connection.execute(statement)
 
 
 @lru_cache

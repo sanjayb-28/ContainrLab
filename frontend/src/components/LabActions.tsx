@@ -11,6 +11,29 @@ type Props = {
 
 type Message = { kind: "success" | "error"; text: string };
 
+function formatDuration(totalSeconds: number | null): string {
+  if (totalSeconds === null) {
+    return "";
+  }
+  if (totalSeconds <= 0) {
+    return "0s";
+  }
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes}m`);
+  }
+  if (hours === 0 && seconds > 0) {
+    parts.push(`${seconds}s`);
+  }
+  return parts.join(" ");
+}
+
 async function postJson(path: string, payload: unknown) {
   const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -64,6 +87,7 @@ export default function LabActions({ slug, initialSession }: Props) {
     "start" | "judge" | "history" | "load-more" | null
   >(null);
   const [message, setMessage] = useState<Message | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialSession) {
@@ -74,6 +98,39 @@ export default function LabActions({ slug, initialSession }: Props) {
 
   const attempts = useMemo(() => session?.attempts ?? [], [session]);
   const currentSessionId = sessionField || session?.session_id || "";
+  const expiresAt = session?.expires_at ? new Date(session.expires_at).getTime() : null;
+  const endedAt = session?.ended_at ? new Date(session.ended_at).getTime() : null;
+  const sessionExpired =
+    Boolean(endedAt) || (expiresAt !== null && Date.now() >= expiresAt);
+  const ttlWarning =
+    !sessionExpired && remainingSeconds !== null && remainingSeconds <= 300;
+
+  useEffect(() => {
+    if (!expiresAt || sessionExpired) {
+      setRemainingSeconds(null);
+      return;
+    }
+    const update = () => {
+      const diff = expiresAt - Date.now();
+      setRemainingSeconds(Math.max(0, Math.floor(diff / 1000)));
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt, sessionExpired]);
+
+  useEffect(() => {
+    if (sessionExpired && session && !session.ended_at) {
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              ended_at: prev.expires_at,
+            }
+          : prev
+      );
+    }
+  }, [sessionExpired, session]);
 
   const refreshHistory = useCallback(
     async (id: string, limit = historyLimit) => {
@@ -122,6 +179,13 @@ export default function LabActions({ slug, initialSession }: Props) {
       setMessage({ kind: "error", text: "Provide a session ID first." });
       return;
     }
+    if (sessionExpired) {
+      setMessage({
+        kind: "error",
+        text: "Session expired. Start a new session before running the judge.",
+      });
+      return;
+    }
     setLoading("judge");
     setMessage(null);
     try {
@@ -147,7 +211,7 @@ export default function LabActions({ slug, initialSession }: Props) {
     } finally {
       setLoading(null);
     }
-  }, [currentSessionId, refreshHistory, slug]);
+  }, [currentSessionId, refreshHistory, sessionExpired, slug]);
 
   const handleHistoryRefresh = useCallback(async () => {
     const id = currentSessionId.trim();
@@ -201,6 +265,25 @@ export default function LabActions({ slug, initialSession }: Props) {
           <p className="text-sm text-slate-400">
             Start a fresh workspace, run the judge, or inspect prior attempts.
           </p>
+          {session && (
+            <p
+              className={`text-xs ${
+                sessionExpired
+                  ? "text-red-300"
+                  : ttlWarning
+                  ? "text-amber-200"
+                  : "text-slate-400"
+              }`}
+            >
+              {sessionExpired
+                ? `Session expired at ${new Date(
+                    session.ended_at ?? session.expires_at
+                  ).toLocaleTimeString()}`
+                : `Session expires in ${formatDuration(
+                    remainingSeconds
+                  )} (${new Date(session.expires_at).toLocaleTimeString()})`}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -214,7 +297,7 @@ export default function LabActions({ slug, initialSession }: Props) {
           <button
             type="button"
             onClick={handleJudge}
-            disabled={loading === "judge"}
+            disabled={loading === "judge" || sessionExpired}
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading === "judge" ? "Checking..." : "Run judge"}

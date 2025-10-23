@@ -40,6 +40,8 @@ def test_get_session_detail_returns_attempts(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["session_id"] == session_id
     assert payload["lab_slug"] == "lab1"
+    assert "expires_at" in payload
+    assert payload["ended_at"] is None
     assert len(payload["attempts"]) == 1
     assert payload["attempts"][0]["metrics"]["idx"] == 1
 

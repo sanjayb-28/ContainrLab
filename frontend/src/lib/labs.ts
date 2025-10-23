@@ -27,6 +27,8 @@ export type SessionDetail = {
   runner_container: string;
   ttl_seconds: number;
   created_at: string;
+  expires_at: string;
+  ended_at?: string | null;
   attempts: SessionAttempt[];
 };
 
