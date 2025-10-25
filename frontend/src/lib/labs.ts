@@ -40,6 +40,22 @@ export type InspectorSummary = {
   metrics: Record<string, unknown>;
   previous_metrics?: Record<string, unknown> | null;
   metric_deltas?: Record<string, number>;
+  timeline?: InspectorTimelineEntry[];
+};
+
+export type InspectorTimelineEntry = {
+  attempt_id: number;
+  created_at: string;
+  passed: boolean;
+  metrics: {
+    elapsed_seconds?: number;
+    image_size_mb?: number;
+    cache_hits?: number;
+    layer_count?: number;
+    [key: string]: number | undefined;
+  };
+  deltas?: Record<string, number>;
+  notes?: Record<string, unknown>;
 };
 
 export async function fetchLabs(): Promise<LabSummary[]> {

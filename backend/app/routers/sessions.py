@@ -86,6 +86,7 @@ class InspectorResponse(BaseModel):
     metrics: Dict[str, Any] = Field(default_factory=dict)
     previous_metrics: Dict[str, Any] | None = None
     metric_deltas: Dict[str, float] = Field(default_factory=dict)
+    timeline: list[Dict[str, Any]] = Field(default_factory=list)
 
 
 @router.post("/{session_id}/build", response_model=BuildResponse)
@@ -235,6 +236,8 @@ async def inspect_session(
     previous_metrics = previous["metrics"] if previous else None
     deltas = _compute_metric_deltas(current_metrics, previous_metrics or {})
 
+    timeline_entries = _build_timeline(attempts)
+
     return InspectorResponse(
         session_id=session_id,
         attempt_count=len(attempts),
@@ -243,6 +246,7 @@ async def inspect_session(
         metrics=current_metrics,
         previous_metrics=previous_metrics,
         metric_deltas=deltas,
+        timeline=timeline_entries,
     )
 
 
@@ -269,3 +273,53 @@ def _compute_metric_deltas(current: Dict[str, Any], previous: Dict[str, Any]) ->
         if delta:
             deltas[key] = delta
     return deltas
+
+
+def _extract_build_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
+    build = metrics.get("build", {}) if isinstance(metrics, dict) else {}
+    summary: Dict[str, Any] = {}
+    if isinstance(build, dict):
+        elapsed = build.get("elapsed_seconds")
+        if isinstance(elapsed, (int, float)):
+            summary["elapsed_seconds"] = float(elapsed)
+        image_size = build.get("image_size_mb")
+        if isinstance(image_size, (int, float)):
+            summary["image_size_mb"] = float(image_size)
+        cache_hits = build.get("cache_hits")
+        if isinstance(cache_hits, (int, float)):
+            summary["cache_hits"] = int(cache_hits)
+        layer_count = build.get("layer_count")
+        if isinstance(layer_count, (int, float)):
+            summary["layer_count"] = int(layer_count)
+    return summary
+
+
+def _build_timeline(attempts: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    timeline: list[Dict[str, Any]] = []
+    if not attempts:
+        return timeline
+
+    for index, attempt in enumerate(attempts):
+        entry_metrics = _extract_build_metrics(attempt.get("metrics", {}))
+        previous = attempts[index + 1] if index + 1 < len(attempts) else None
+        previous_metrics = _extract_build_metrics(previous.get("metrics", {})) if previous else {}
+
+        deltas: Dict[str, float] = {}
+        for key, value in entry_metrics.items():
+            if isinstance(value, (int, float)) and isinstance(previous_metrics.get(key), (int, float)):
+                delta = round(float(value) - float(previous_metrics[key]), 3)
+                if delta:
+                    deltas[key] = delta
+
+        timeline.append(
+            {
+                "attempt_id": attempt["id"],
+                "created_at": attempt["created_at"],
+                "passed": attempt["passed"],
+                "metrics": entry_metrics,
+                "deltas": deltas,
+                "notes": attempt.get("notes", {}),
+            }
+        )
+
+    return timeline
