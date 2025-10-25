@@ -309,7 +309,7 @@ export default function WorkspacePane() {
     }
     const relative = currentTarget
       .replace(WORKSPACE_ROOT, "")
-      .replace(/^\/+/u, "")
+      .replace(/^\/+/, "")
       .split("/")
       .filter(Boolean);
     let accumulator = WORKSPACE_ROOT;
