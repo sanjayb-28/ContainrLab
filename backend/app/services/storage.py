@@ -85,9 +85,23 @@ class Storage:
         try:
             with self._lock:
                 self._connection.executescript(schema)
+                self._ensure_column("users", "token_hash", "ALTER TABLE users ADD COLUMN token_hash TEXT")
+                self._ensure_column("users", "last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TEXT")
                 self._ensure_column("sessions", "user_id", "ALTER TABLE sessions ADD COLUMN user_id TEXT")
                 self._ensure_column("sessions", "expires_at", "ALTER TABLE sessions ADD COLUMN expires_at TEXT")
                 self._ensure_column("sessions", "ended_at", "ALTER TABLE sessions ADD COLUMN ended_at TEXT")
+                self._connection.execute(
+                    """
+                    UPDATE users
+                    SET token_hash = COALESCE(token_hash, '')
+                    """
+                )
+                self._connection.execute(
+                    """
+                    UPDATE users
+                    SET last_login_at = COALESCE(last_login_at, created_at)
+                    """
+                )
                 self._connection.commit()
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to initialise database schema: {exc}") from exc

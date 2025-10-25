@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import AuthStatus from "@/components/AuthStatus";
+import { DISPLAY_API_BASE } from "@/lib/api";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -32,7 +33,7 @@ export default function RootLayout({
             </header>
             <main className="flex-1">{children}</main>
             <footer className="mt-8 border-t border-slate-900 pt-4 text-sm text-slate-500">
-              <span>API base: {process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"}</span>
+              <span>API base: {DISPLAY_API_BASE}</span>
             </footer>
           </div>
         </AuthProvider>

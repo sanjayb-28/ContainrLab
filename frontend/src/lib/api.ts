@@ -1,7 +1,15 @@
 const FALLBACK_API_BASE = "http://localhost:8000";
 
-export const API_BASE =
+const PUBLIC_API_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") || FALLBACK_API_BASE;
+
+const INTERNAL_API_BASE =
+  process.env.API_INTERNAL_BASE?.replace(/\/$/, "") || PUBLIC_API_BASE;
+
+export const DISPLAY_API_BASE = PUBLIC_API_BASE;
+
+export const API_BASE =
+  typeof window === "undefined" ? INTERNAL_API_BASE : PUBLIC_API_BASE;
 
 type ApiOptions = RequestInit & { token?: string };
 
@@ -31,12 +39,22 @@ function mergeHeaders(initHeaders: HeadersInit | undefined, token?: string): Hea
 
 export async function apiGet<T>(path: string, options?: ApiOptions): Promise<T> {
   const { token, headers, ...rest } = options ?? {};
-  const response = await fetch(`${API_BASE}${path}`, {
-    cache: "no-store",
-    ...rest,
-    headers: mergeHeaders(headers, token),
-  });
-  return handleJsonResponse(response);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      cache: "no-store",
+      ...rest,
+      headers: mergeHeaders(headers, token),
+    });
+    return handleJsonResponse(response);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Unable to reach the ContainrLab API at ${DISPLAY_API_BASE}. Is the backend running?`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
 }
 
 export async function apiPost<T>(
@@ -45,15 +63,25 @@ export async function apiPost<T>(
   options?: ApiOptions
 ): Promise<T> {
   const { token, headers, ...rest } = options ?? {};
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...mergeHeaders(headers, token),
-    },
-    body: JSON.stringify(body ?? {}),
-    cache: "no-store",
-    ...rest,
-  });
-  return handleJsonResponse(response);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...mergeHeaders(headers, token),
+      },
+      body: JSON.stringify(body ?? {}),
+      cache: "no-store",
+      ...rest,
+    });
+    return handleJsonResponse(response);
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Unable to reach the ContainrLab API at ${DISPLAY_API_BASE}. Is the backend running?`,
+        { cause: error }
+      );
+    }
+    throw error;
+  }
 }

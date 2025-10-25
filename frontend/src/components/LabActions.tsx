@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { apiPost } from "@/lib/api";
+import { DISPLAY_API_BASE, apiPost } from "@/lib/api";
 import { fetchSession, type SessionDetail } from "@/lib/labs";
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
@@ -14,6 +14,25 @@ type Props = {
 type Message = { kind: "success" | "error"; text: string };
 
 type LoadingState = "start" | "judge" | "history" | "load-more" | null;
+
+const API_UNREACHABLE_TEXT = `Cannot reach the ContainrLab API at ${DISPLAY_API_BASE}. Is the backend running?`;
+
+function isNetworkError(error: unknown): error is Error {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && /fetch failed|failed to fetch|network error/i.test(error.message))
+  );
+}
+
+function resolveErrorMessage(error: unknown, fallback: string): string {
+  if (isNetworkError(error)) {
+    return API_UNREACHABLE_TEXT;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+}
 
 function formatDuration(totalSeconds: number | null): string {
   if (totalSeconds === null) {
@@ -115,8 +134,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
       setSessionId(detail.session_id);
       setMessage({ kind: "success", text: `Session ${startResponse.session_id} started.` });
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Failed to start session.";
-      setMessage({ kind: "error", text });
+      setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to start session.") });
     } finally {
       setLoading(null);
     }
@@ -143,6 +161,10 @@ export default function LabActions({ slug, initialSessionId }: Props) {
         text: result.passed ? "Judge passed! 🎉" : "Judge reported failures. Review the hints below.",
       });
     } catch (error) {
+      if (isNetworkError(error)) {
+        setMessage({ kind: "error", text: API_UNREACHABLE_TEXT });
+        return;
+      }
       const payload = error && typeof error === "object" ? (error as any).payload : null;
       let text = error instanceof Error ? error.message : "Judge request failed.";
       if (payload?.detail && typeof payload.detail === "string") {
@@ -165,8 +187,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
       await refreshHistory(id, historyLimit);
       setMessage({ kind: "success", text: "History refreshed." });
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Failed to load history.";
-      setMessage({ kind: "error", text });
+      setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to load history.") });
     } finally {
       setLoading(null);
     }
@@ -184,8 +205,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
       setLoading("load-more");
       await refreshHistory(id, nextLimit);
     } catch (error) {
-      const text = error instanceof Error ? error.message : "Failed to load more attempts.";
-      setMessage({ kind: "error", text });
+      setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to load more attempts.") });
     } finally {
       setLoading(null);
     }
