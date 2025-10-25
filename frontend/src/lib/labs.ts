@@ -1,4 +1,4 @@
-import { apiGet } from "./api";
+import { apiGet, apiPost } from "./api";
 
 export type LabSummary = {
   slug: string;
@@ -57,4 +57,25 @@ export async function fetchSession(sessionId: string, token: string, limit?: num
 
 export async function fetchInspector(sessionId: string, token: string): Promise<InspectorSummary> {
   return apiGet(`/sessions/${sessionId}/inspector`, { token });
+}
+
+export type BuildResponse = {
+  image_tag: string;
+  logs: string[];
+  metrics: Record<string, unknown>;
+};
+
+export async function buildSession(
+  sessionId: string,
+  token: string,
+  options: {
+    contextPath?: string;
+    dockerfilePath?: string;
+  } = {}
+): Promise<BuildResponse> {
+  const { contextPath = "/workspace", dockerfilePath = "Dockerfile" } = options;
+  return apiPost(`/sessions/${sessionId}/build`, {
+    context_path: contextPath,
+    dockerfile_path: dockerfilePath,
+  }, { token });
 }

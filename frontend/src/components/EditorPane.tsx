@@ -8,13 +8,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
+const AUTOSAVE_DELAY_MS = 1500;
+
+type SaveSource = "manual" | "autosave";
+
 export type EditorPaneProps = {
   path?: string;
+  autosaveEnabled: boolean;
   onDirtyChange?: (path: string | undefined, dirty: boolean) => void;
-  onSave?: (path: string) => void;
+  onSave?: (path: string, context: { source: SaveSource }) => void;
+  onSaveError?: (path: string | undefined, message: string) => void;
 };
 
-export default function EditorPane({ path, onDirtyChange, onSave }: EditorPaneProps) {
+export default function EditorPane({ path, autosaveEnabled, onDirtyChange, onSave, onSaveError }: EditorPaneProps) {
   const { token } = useAuth();
   const { sessionId } = useLabSession();
   const [content, setContent] = useState<string>("");
@@ -22,6 +28,7 @@ export default function EditorPane({ path, onDirtyChange, onSave }: EditorPanePr
   const [error, setError] = useState<string | null>(null);
   const previousPathRef = useRef<string | undefined>();
   const dirtyStateRef = useRef<{ path?: string; dirty: boolean }>({ path: undefined, dirty: false });
+  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateDirtyState = useCallback(
     (targetPath: string | undefined, dirty: boolean) => {
@@ -67,23 +74,64 @@ export default function EditorPane({ path, onDirtyChange, onSave }: EditorPanePr
       });
   }, [path, sessionId, token, updateDirtyState]);
 
-  const handleSave = async () => {
-    if (!sessionId || !token || !path) {
+  const clearAutosaveTimer = useCallback(() => {
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = null;
+    }
+  }, []);
+
+  const handleSave = useCallback(
+    async (source: SaveSource = "manual") => {
+      if (!sessionId || !token || !path) {
+        return;
+      }
+      setStatus("saving");
+      try {
+        await writeFile(sessionId, path, encodeToBase64(content), token);
+        updateDirtyState(path, false);
+        onSave?.(path, { source });
+        setStatus("saved");
+        setTimeout(() => setStatus("idle"), 2000);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to save file";
+        setError(message);
+        setStatus("error");
+        onSaveError?.(path, message);
+      }
+    },
+    [content, onSave, onSaveError, path, sessionId, token, updateDirtyState]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearAutosaveTimer();
+    };
+  }, [clearAutosaveTimer]);
+
+  useEffect(() => {
+    if (!autosaveEnabled || status !== "dirty") {
+      clearAutosaveTimer();
       return;
     }
-    setStatus("saving");
-    try {
-      await writeFile(sessionId, path, encodeToBase64(content), token);
-      updateDirtyState(path, false);
-      onSave?.(path);
-      setStatus("saved");
-      setTimeout(() => setStatus("idle"), 2000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save file";
-      setError(message);
-      setStatus("error");
-    }
-  };
+    clearAutosaveTimer();
+    autosaveTimerRef.current = setTimeout(() => {
+      void handleSave("autosave");
+    }, AUTOSAVE_DELAY_MS);
+  }, [autosaveEnabled, clearAutosaveTimer, handleSave, status]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (status !== "saving") {
+          void handleSave("manual");
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleSave, status]);
 
   const disabled = !sessionId || !token;
 
@@ -99,7 +147,7 @@ export default function EditorPane({ path, onDirtyChange, onSave }: EditorPanePr
         {path && (
           <button
             type="button"
-            onClick={handleSave}
+            onClick={() => handleSave("manual")}
             disabled={status === "saving" || disabled}
             className="rounded bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
