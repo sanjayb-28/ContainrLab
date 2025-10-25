@@ -14,10 +14,15 @@ from typing import Any, Dict, List, Literal
 
 import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
+import logging
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
 app = FastAPI(title="runnerd")
+
+logger = logging.getLogger("runnerd.terminal")
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
 
 client = docker.from_env()
 
@@ -308,13 +313,9 @@ def exec_in_runner(payload: ExecRequest) -> Dict[str, Any]:
 @app.websocket("/terminal/{session_id}")
 async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str = DEFAULT_SHELL):
     await websocket.accept()
+    logger.info("terminal websocket accepted %s", session_id)
     try:
         container = _get_running_container(session_id)
-    except HTTPException as exc:
-        await websocket.close(code=4404, reason=str(exc.detail))
-        return
-
-    try:
         exec_id = container.client.api.exec_create(  # type: ignore[attr-defined]
             container.id,
             cmd=[shell],
@@ -323,73 +324,85 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
             stdout=True,
             stderr=True,
         )
-    except APIError as exc:
-        await websocket.close(code=1011, reason=f"Failed to start shell: {exc.explanation}")
-        return
+        stream = container.client.api.exec_start(  # type: ignore[attr-defined]
+            exec_id,
+            tty=True,
+            stream=False,
+            socket=True,
+        )
+        sock = stream
+        raw_sock = getattr(sock, "_sock", sock)
+        loop = asyncio.get_event_loop()
+        stop_event = asyncio.Event()
 
-    sock = container.client.api.exec_start(  # type: ignore[attr-defined]
-        exec_id,
-        tty=True,
-        stream=False,
-        socket=True,
-    )
+        async def pump_container_to_client() -> None:
+            try:
+                while not stop_event.is_set():
+                    data = await loop.run_in_executor(None, raw_sock.recv, 4096)
+                    if not data:
+                        print("runner sock closed", session_id)
+                        break
+                    await websocket.send_text(data.decode("utf-8", errors="ignore"))
+            except Exception as exc:
+                logger.exception("container->client error %s", session_id, exc_info=exc)
+            finally:
+                stop_event.set()
 
-    loop = asyncio.get_event_loop()
-    stop_event = asyncio.Event()
+        async def pump_client_to_container() -> None:
+            try:
+                while not stop_event.is_set():
+                    try:
+                        message = await websocket.receive_text()
+                    except WebSocketDisconnect:
+                        logger.info("frontend disconnected %s", session_id)
+                        break
+                    except Exception as exc:
+                        logger.exception("receive error %s", session_id, exc_info=exc)
+                        break
+                    try:
+                        payload = json.loads(message)
+                    except json.JSONDecodeError:
+                        payload = {"type": "input", "data": message}
 
-    async def pump_container_to_client() -> None:
+                    msg_type = payload.get("type")
+                    print("runner inbound", session_id, msg_type, payload)
+                    if msg_type == "input":
+                        data = payload.get("data", "")
+                        if isinstance(data, str) and data:
+                            await loop.run_in_executor(None, raw_sock.send, data.encode("utf-8"))
+                    elif msg_type == "resize":
+                        cols = payload.get("cols")
+                        rows = payload.get("rows")
+                        if isinstance(cols, int) and isinstance(rows, int):
+                            try:
+                                print("runner resize", session_id, cols, rows)
+                                container.client.api.exec_resize(  # type: ignore[attr-defined]
+                                    exec_id,
+                                    width=cols,
+                                    height=rows,
+                                )
+                            except APIError as exc:
+                                logger.warning("resize failed %s: %s", session_id, exc)
+            finally:
+                stop_event.set()
         try:
-            while not stop_event.is_set():
-                data = await loop.run_in_executor(None, sock.recv, 4096)
-                if not data:
-                    break
-                await websocket.send_text(data.decode("utf-8", errors="ignore"))
-        except Exception:
-            pass
+            await asyncio.gather(pump_container_to_client(), pump_client_to_container())
         finally:
             stop_event.set()
-
-    async def pump_client_to_container() -> None:
-        try:
-            while not stop_event.is_set():
+            try:
                 try:
-                    message = await websocket.receive_text()
-                except WebSocketDisconnect:
-                    break
-                try:
-                    payload = json.loads(message)
-                except json.JSONDecodeError:
-                    payload = {"type": "input", "data": message}
-
-                msg_type = payload.get("type")
-                if msg_type == "input":
-                    data = payload.get("data", "")
-                    if isinstance(data, str) and data:
-                        await loop.run_in_executor(None, sock.send, data.encode("utf-8"))
-                elif msg_type == "resize":
-                    cols = payload.get("cols")
-                    rows = payload.get("rows")
-                    if isinstance(cols, int) and isinstance(rows, int):
-                        try:
-                            container.client.api.exec_resize(  # type: ignore[attr-defined]
-                                exec_id,
-                                width=cols,
-                                height=rows,
-                            )
-                        except APIError:
-                            pass
-        finally:
-            stop_event.set()
-
-    try:
-        await asyncio.gather(pump_container_to_client(), pump_client_to_container())
-    finally:
-        stop_event.set()
-        try:
-            sock.close()
-        except Exception:
-            pass
-        await websocket.close()
+                    raw_sock.close()
+                finally:
+                    if sock is not raw_sock:
+                        with contextlib.suppress(Exception):
+                            sock.close()
+            except Exception:
+                pass
+            await websocket.close()
+    except Exception as exc:
+        logger.exception("terminal websocket failure %s", session_id, exc_info=exc)
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1011, reason=str(exc))
 
 
 @app.post("/fs/list")
@@ -588,6 +601,14 @@ def _get_running_container(session_id: str):
 def _wait_for_dockerd(container) -> None:
     deadline = time.time() + STARTUP_TIMEOUT
     while time.time() < deadline:
+        container.reload()
+        if container.status != "running":
+            logs = container.logs(tail=50).decode("utf-8", errors="ignore")
+            container.remove(force=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Runner container exited during startup: status={container.status}, logs:\n{logs}",
+            )
         result = container.exec_run(["sh", "-c", f"test -S {SOCKET_PATH}"])
         if result.exit_code == 0:
             return
