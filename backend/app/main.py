@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import httpx  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
 
-from .routers import agent, files, labs, sessions, terminal
+from .routers import agent, auth, files, labs, sessions, terminal
 from .services.storage import get_storage
 from .services.runner_client import get_runner_client
 
@@ -25,6 +25,7 @@ app.include_router(sessions.router)
 app.include_router(files.router)
 app.include_router(terminal.router)
 app.include_router(agent.router)
+app.include_router(auth.router)
 
 
 @app.get("/healthz")

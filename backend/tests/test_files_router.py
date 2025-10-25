@@ -13,7 +13,25 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from backend.app.main import app
+from backend.app.services.auth_service import hash_token
 from backend.app.services.runner_client import RunnerClient, get_runner_client
+from backend.app.services.storage import Storage, get_storage
+
+
+def _prepare_storage(tmp_path: Path, session_id: str) -> tuple[Storage, dict[str, str]]:
+    storage = Storage(db_path=tmp_path / "fs.db")
+    storage.init()
+    token = "fs-token"
+    user = storage.upsert_user_token("fs@example.com", hash_token(token))
+    storage.record_session(
+        session_id=session_id,
+        lab_slug="lab1",
+        runner_container="container",
+        ttl_seconds=2700,
+        user_id=user["user_id"],
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+    return storage, headers
 
 
 class FakeRunner(RunnerClient):
@@ -69,9 +87,11 @@ def override_runner_client() -> FakeRunner:
     return FakeRunner()
 
 
-def test_list_path_override():
+def test_list_path_override(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "test-session")
     app.dependency_overrides[get_runner_client] = override_runner_client
-    response = client.get("/fs/test-session/list")
+    app.dependency_overrides[get_storage] = lambda: storage
+    response = client.get("/fs/test-session/list", headers=headers)
     assert response.status_code == 200
     payload = response.json()
     assert payload["entries"][0]["name"] == "Dockerfile"
@@ -80,19 +100,24 @@ def test_list_path_override():
     app.dependency_overrides.clear()
 
 
-def test_write_invalid_encoding():
+def test_write_invalid_encoding(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "abc")
     app.dependency_overrides[get_runner_client] = override_runner_client
+    app.dependency_overrides[get_storage] = lambda: storage
     response = client.post(
         "/fs/write",
         json={"session_id": "abc", "path": "/workspace/test.txt", "content": "abc", "encoding": "utf-8"},
+        headers=headers,
     )
     assert response.status_code == 400
     app.dependency_overrides.clear()
 
 
-def test_create_file_request():
+def test_create_file_request(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "abc")
     fake = FakeRunner()
     app.dependency_overrides[get_runner_client] = lambda: fake
+    app.dependency_overrides[get_storage] = lambda: storage
     response = client.post(
         "/fs/create",
         json={
@@ -101,6 +126,7 @@ def test_create_file_request():
             "kind": "file",
             "content": base64.b64encode(b"data").decode("ascii"),
         },
+        headers=headers,
     )
     assert response.status_code == 200
     payload = response.json()
@@ -109,36 +135,45 @@ def test_create_file_request():
     app.dependency_overrides.clear()
 
 
-def test_create_directory_request():
+def test_create_directory_request(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "abc")
     fake = FakeRunner()
     app.dependency_overrides[get_runner_client] = lambda: fake
+    app.dependency_overrides[get_storage] = lambda: storage
     response = client.post(
         "/fs/create",
         json={"session_id": "abc", "path": "/workspace/new", "kind": "directory"},
+        headers=headers,
     )
     assert response.status_code == 200
     assert fake.created == [("/workspace/new", "directory")]
     app.dependency_overrides.clear()
 
 
-def test_rename_request():
+def test_rename_request(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "abc")
     fake = FakeRunner()
     app.dependency_overrides[get_runner_client] = lambda: fake
+    app.dependency_overrides[get_storage] = lambda: storage
     response = client.post(
         "/fs/rename",
         json={"session_id": "abc", "path": "/workspace/old.txt", "new_path": "/workspace/new.txt"},
+        headers=headers,
     )
     assert response.status_code == 200
     assert fake.renamed == [("/workspace/old.txt", "/workspace/new.txt")]
     app.dependency_overrides.clear()
 
 
-def test_delete_request():
+def test_delete_request(tmp_path: Path):
+    storage, headers = _prepare_storage(tmp_path, "abc")
     fake = FakeRunner()
     app.dependency_overrides[get_runner_client] = lambda: fake
+    app.dependency_overrides[get_storage] = lambda: storage
     response = client.post(
         "/fs/delete",
         json={"session_id": "abc", "path": "/workspace/delete.txt"},
+        headers=headers,
     )
     assert response.status_code == 200
     assert fake.deleted == ["/workspace/delete.txt"]

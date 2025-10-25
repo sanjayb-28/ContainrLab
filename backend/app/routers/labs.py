@@ -8,6 +8,7 @@ import httpx  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
 from pydantic import BaseModel  # type: ignore[import]
 
+from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
 from ..services.judge_service import JudgeService, get_judge_service
 from ..services.lab_catalog import LabCatalog, get_lab_catalog
 from ..services.runner_client import RunnerClient, get_runner_client
@@ -58,6 +59,7 @@ async def start_lab(
     lab_slug: str,
     runner: RunnerClient = Depends(get_runner_client),
     storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> LabStartResponse:
     """Create a disposable runner session for the requested lab."""
     session_id = uuid.uuid4().hex
@@ -79,6 +81,7 @@ async def start_lab(
             lab_slug=lab_slug,
             runner_container=container_name,
             ttl_seconds=SESSION_TTL_SECONDS,
+            user_id=user.user_id,
         )
     except StorageError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -126,7 +129,9 @@ async def check_lab(
     runner: RunnerClient = Depends(get_runner_client),
     judge: JudgeService = Depends(get_judge_service),
     storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> LabCheckResponse:
+    ensure_session_owner(storage, request.session_id, user)
     result = await judge.evaluate(lab_slug, request.session_id, runner)
     failures = [
         JudgeFailureResponse(code=failure.code, message=failure.message, hint=failure.hint)

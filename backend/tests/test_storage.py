@@ -15,12 +15,15 @@ def test_storage_records_session_and_attempt(tmp_path: Path) -> None:
     storage = Storage(db_path=db_path)
     storage.init()
 
+    user = storage.upsert_user_token("tester@example.com", "hash")
+
     session_id = "abc123"
     storage.record_session(
         session_id=session_id,
         lab_slug="lab1",
         runner_container="rl_sess_abc123",
         ttl_seconds=2700,
+        user_id=user["user_id"],
     )
 
     session = storage.get_session(session_id)
@@ -54,11 +57,14 @@ def test_storage_records_session_and_attempt(tmp_path: Path) -> None:
 def test_list_attempts_limit_returns_latest_first(tmp_path: Path) -> None:
     storage = Storage(db_path=tmp_path / "limit.db")
     storage.init()
+    user = storage.upsert_user_token("limit@example.com", "hash")
+
     storage.record_session(
         session_id="abc",
         lab_slug="lab1",
         runner_container="container",
         ttl_seconds=123,
+        user_id=user["user_id"],
     )
 
     for idx in range(3):
@@ -96,17 +102,21 @@ def test_list_expired_sessions(tmp_path: Path) -> None:
     storage = Storage(db_path=tmp_path / "exp.db")
     storage.init()
 
+    user = storage.upsert_user_token("expired@example.com", "hash")
+
     storage.record_session(
         session_id="expired",
         lab_slug="lab1",
         runner_container="container",
         ttl_seconds=5,
+        user_id=user["user_id"],
     )
     storage.record_session(
         session_id="active",
         lab_slug="lab2",
         runner_container="container2",
         ttl_seconds=9999,
+        user_id=user["user_id"],
     )
 
     cutoff = datetime.now(timezone.utc) + timedelta(seconds=10)

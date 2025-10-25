@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { FitAddon } from "@xterm/addon-fit";
+import { useAuth } from "@/components/AuthProvider";
+import { useLabSession } from "@/components/LabSessionProvider";
 import { AttachAddon } from "@xterm/addon-attach";
+import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
+import { useEffect, useRef, useState } from "react";
 
 const OPEN_DELAY_MS = 500;
 
-export default function Terminal({
-  sessionId,
-  shell = "/bin/sh",
-  className = "",
-}: {
-  sessionId?: string;
+type TerminalProps = {
   shell?: string;
   className?: string;
-}) {
+};
+
+export default function Terminal({ shell = "/bin/sh", className = "" }: TerminalProps) {
+  const { token } = useAuth();
+  const { sessionId } = useLabSession();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Xterm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -24,7 +25,7 @@ export default function Terminal({
   const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "closed">("idle");
 
   useEffect(() => {
-    if (!containerRef.current || !sessionId) {
+    if (!containerRef.current || !sessionId || !token) {
       return;
     }
 
@@ -48,7 +49,8 @@ export default function Terminal({
 
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
     const host = window.location.host;
-    const wsUrl = `${protocol}://${host}/ws/terminal/${sessionId}?shell=${encodeURIComponent(shell)}`;
+    const params = new URLSearchParams({ shell, token });
+    const wsUrl = `${protocol}://${host}/ws/terminal/${sessionId}?${params.toString()}`;
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 
@@ -87,13 +89,17 @@ export default function Terminal({
       wsRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, shell]);
+  }, [sessionId, shell, token]);
+
+  const statusMessage = !sessionId
+    ? "Start a session to open a terminal."
+    : !token
+    ? "Sign in to connect to the terminal."
+    : `Terminal status: ${status}`;
 
   return (
     <div className={className}>
-      <div className="mb-2 text-xs text-slate-400">
-        Terminal status: {status}
-      </div>
+      <div className="mb-2 text-xs text-slate-400">{statusMessage}</div>
       <div
         ref={containerRef}
         className="h-72 w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950"

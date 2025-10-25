@@ -15,6 +15,24 @@ from backend.app.services.agent_service import (
     AgentResult,
     get_agent_service,
 )
+from backend.app.services.auth_service import hash_token
+from backend.app.services.storage import Storage, get_storage
+
+
+def _prepare_storage(tmp_path: Path, session_id: str) -> dict[str, str]:
+    storage = Storage(db_path=tmp_path / "agent.db")
+    storage.init()
+    token = "agent-token"
+    user = storage.upsert_user_token("agent@example.com", hash_token(token))
+    storage.record_session(
+        session_id=session_id,
+        lab_slug="lab1",
+        runner_container="container",
+        ttl_seconds=2700,
+        user_id=user["user_id"],
+    )
+    app.dependency_overrides[get_storage] = lambda: storage
+    return {"Authorization": f"Bearer {token}"}
 
 client = TestClient(app)
 
@@ -49,12 +67,14 @@ def override_agent_service() -> FakeAgent:
     return FakeAgent()
 
 
-def test_hint_endpoint_returns_stub() -> None:
+def test_hint_endpoint_returns_stub(tmp_path: Path) -> None:
     fake = FakeAgent()
     app.dependency_overrides[get_agent_service] = lambda: fake
+    headers = _prepare_storage(tmp_path, "abc")
     response = client.post(
         "/agent/hint",
         json={"session_id": "abc", "prompt": "Need a hint", "lab_slug": "lab1"},
+        headers=headers,
     )
     assert response.status_code == 200
     payload = response.json()
@@ -65,21 +85,25 @@ def test_hint_endpoint_returns_stub() -> None:
     app.dependency_overrides.clear()
 
 
-def test_explain_endpoint_rejects_empty_prompt() -> None:
+def test_explain_endpoint_rejects_empty_prompt(tmp_path: Path) -> None:
+    headers = _prepare_storage(tmp_path, "abc")
     response = client.post(
         "/agent/explain",
         json={"session_id": "abc", "prompt": "   "},
+        headers=headers,
     )
     assert response.status_code == 400
 
 
-def test_explain_endpoint_returns_rate_limit_error() -> None:
+def test_explain_endpoint_returns_rate_limit_error(tmp_path: Path) -> None:
     fake = FakeAgent()
     app.dependency_overrides[get_agent_service] = lambda: fake
+    headers = _prepare_storage(tmp_path, "abc")
 
     response = client.post(
         "/agent/explain",
         json={"session_id": "abc", "prompt": "Explain please"},
+        headers=headers,
     )
     assert response.status_code == 429
     assert "Too many agent requests" in response.json()["detail"]
