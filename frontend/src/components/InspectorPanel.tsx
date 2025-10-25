@@ -2,8 +2,8 @@
 
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
-import { fetchInspector, type InspectorSummary } from "@/lib/labs";
-import { useCallback, useEffect, useState } from "react";
+import { fetchInspector, type InspectorSummary, type InspectorTimelineEntry } from "@/lib/labs";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type MetricRow = {
   label: string;
@@ -12,35 +12,9 @@ type MetricRow = {
   delta?: number;
 };
 
-function getNestedNumber(metrics: Record<string, unknown> | undefined, path: string): number | undefined {
-  if (!metrics) {
-    return undefined;
-  }
-  const segments = path.split(".");
-  let current: unknown = metrics;
-  for (const segment of segments) {
-    if (current && typeof current === "object") {
-      current = (current as Record<string, unknown>)[segment];
-    } else {
-      return undefined;
-    }
-  }
-  return typeof current === "number" ? (current as number) : undefined;
-}
-
-function formatDelta(delta?: number): JSX.Element | null {
-  if (!delta) {
-    return null;
-  }
-  const sign = delta > 0 ? "+" : "";
-  const trend = delta > 0 ? "▲" : "▼";
-  return (
-    <span className={delta > 0 ? "text-amber-300" : "text-emerald-300"}>
-      {trend} {sign}
-      {delta.toFixed(2)}
-    </span>
-  );
-}
+type TimelineRow = InspectorTimelineEntry & {
+  metrics_display: MetricRow[];
+};
 
 export default function InspectorPanel() {
   const { token } = useAuth();
@@ -79,6 +53,8 @@ export default function InspectorPanel() {
     }
     void load(sessionId);
   }, [load, sessionId]);
+
+  const timeline = useMemo(() => (summary ? buildTimeline(summary.timeline ?? []) : []), [summary]);
 
   if (!sessionId) {
     return <p className="text-sm text-slate-500">Start a session to view build metrics.</p>;
@@ -202,7 +178,7 @@ export default function InspectorPanel() {
         {metricRows.length > 0 && (
           <div className="mt-4 space-y-3 text-xs text-slate-300">
             <div className="flex items-center justify-between">
-              <p className="font-semibold uppercase tracking-wide text-slate-400">Build Metrics</p>
+              <p className="font-semibold uppercase tracking-wide text-slate-400">Latest build metrics</p>
               {previousExists && <span className="text-[11px] text-slate-500">Compared with previous attempt</span>}
             </div>
             <ul className="space-y-2">
@@ -241,6 +217,118 @@ export default function InspectorPanel() {
           </div>
         )}
       </div>
+
+      {timeline.length > 0 && (
+        <div className="space-y-3 rounded border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-slate-100">Attempt timeline</h3>
+            <span className="text-xs text-slate-500">Newest first</span>
+          </div>
+          <ul className="space-y-3">
+            {timeline.map((entry) => (
+              <li key={entry.attempt_id} className="space-y-2 rounded bg-slate-900/60 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-semibold text-slate-200">Attempt #{entry.attempt_id}</span>
+                  <span className={entry.passed ? "text-emerald-300" : "text-amber-200"}>
+                    {entry.passed ? "Passed" : "Failed"}
+                  </span>
+                  <span className="text-slate-500">{new Date(entry.created_at).toLocaleString()}</span>
+                </div>
+                {entry.metrics_display.length > 0 && (
+                  <ul className="grid gap-2 text-xs md:grid-cols-2">
+                    {entry.metrics_display.map((metric) => (
+                      <li key={metric.path} className="flex justify-between rounded border border-slate-800 bg-slate-950/60 px-3 py-2">
+                        <span className="text-slate-300">{metric.label}</span>
+                        <span className="text-right text-slate-100">
+                          <span>{metric.display}</span>
+                          {formatDelta(metric.delta)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {entry.notes && Object.keys(entry.notes).length > 0 && (
+                  <div className="text-xs text-slate-400">
+                    <p className="font-semibold uppercase tracking-wide text-slate-400">Notes</p>
+                    <pre className="mt-1 overflow-x-auto rounded bg-slate-950/80 p-3 text-xs text-slate-200">
+                      {JSON.stringify(entry.notes, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
+  );
+}
+
+function buildTimeline(entries: InspectorTimelineEntry[]): TimelineRow[] {
+  return entries.map((entry) => {
+    const metricsDisplay: MetricRow[] = [];
+    if (typeof entry.metrics.elapsed_seconds === "number") {
+      metricsDisplay.push({
+        label: "Build time",
+        path: "elapsed_seconds",
+        display: `${entry.metrics.elapsed_seconds.toFixed(2)} s`,
+        delta: entry.deltas?.elapsed_seconds,
+      });
+    }
+    if (typeof entry.metrics.image_size_mb === "number") {
+      metricsDisplay.push({
+        label: "Image size",
+        path: "image_size_mb",
+        display: `${entry.metrics.image_size_mb.toFixed(2)} MB`,
+        delta: entry.deltas?.image_size_mb,
+      });
+    }
+    if (typeof entry.metrics.cache_hits === "number") {
+      metricsDisplay.push({
+        label: "Cache hits",
+        path: "cache_hits",
+        display: entry.metrics.cache_hits.toString(),
+        delta: entry.deltas?.cache_hits,
+      });
+    }
+    if (typeof entry.metrics.layer_count === "number") {
+      metricsDisplay.push({
+        label: "Layers",
+        path: "layer_count",
+        display: entry.metrics.layer_count.toString(),
+        delta: entry.deltas?.layer_count,
+      });
+    }
+    return { ...entry, metrics_display: metricsDisplay };
+  });
+}
+
+function getNestedNumber(metrics: Record<string, unknown> | undefined, path: string): number | undefined {
+  if (!metrics) {
+    return undefined;
+  }
+  const segments = path.split(".");
+  let current: unknown = metrics;
+  for (const segment of segments) {
+    if (current && typeof current === "object") {
+      current = (current as Record<string, unknown>)[segment];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof current === "number" ? (current as number) : undefined;
+}
+
+function formatDelta(delta?: number): JSX.Element | null {
+  if (!delta) {
+    return null;
+  }
+  const sign = delta > 0 ? "+" : "";
+  const trend = delta > 0 ? "▲" : "▼";
+  return (
+    <span className={delta > 0 ? "text-amber-300" : "text-emerald-300"}>
+      {trend} {sign}
+      {delta.toFixed(2)}
+    </span>
   );
 }

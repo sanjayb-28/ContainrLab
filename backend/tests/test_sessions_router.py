@@ -115,5 +115,8 @@ def test_inspector_endpoint(tmp_path: Path) -> None:
     assert payload["previous_metrics"]["build"]["image_size_mb"] == 48.0
     assert payload["metric_deltas"]["build.image_size_mb"] == -5.9
     assert payload["last_passed"] is False
+    assert len(payload["timeline"]) == 2
+    assert payload["timeline"][0]["metrics"]["image_size_mb"] == 42.1
+    assert payload["timeline"][0]["deltas"]["image_size_mb"] == -5.9
 
     app.dependency_overrides.clear()
