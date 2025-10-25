@@ -29,7 +29,7 @@ async function handleJsonResponse(response: Response) {
   return payload;
 }
 
-function mergeHeaders(initHeaders: HeadersInit | undefined, token?: string): HeadersInit {
+function mergeHeaders(initHeaders: HeadersInit | undefined, token?: string): Headers {
   const headers = new Headers(initHeaders || {});
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -38,12 +38,13 @@ function mergeHeaders(initHeaders: HeadersInit | undefined, token?: string): Hea
 }
 
 export async function apiGet<T>(path: string, options?: ApiOptions): Promise<T> {
-  const { token, headers, ...rest } = options ?? {};
+  const { token, headers: initHeaders, ...rest } = options ?? {};
+  const requestHeaders = mergeHeaders(initHeaders, token);
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       cache: "no-store",
       ...rest,
-      headers: mergeHeaders(headers, token),
+      headers: requestHeaders,
     });
     return handleJsonResponse(response);
   } catch (error) {
@@ -62,14 +63,13 @@ export async function apiPost<T>(
   body: unknown,
   options?: ApiOptions
 ): Promise<T> {
-  const { token, headers, ...rest } = options ?? {};
+  const { token, headers: initHeaders, ...rest } = options ?? {};
+  const requestHeaders = mergeHeaders(initHeaders, token);
+  requestHeaders.set("Content-Type", "application/json");
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...mergeHeaders(headers, token),
-      },
+      headers: requestHeaders,
       body: JSON.stringify(body ?? {}),
       cache: "no-store",
       ...rest,

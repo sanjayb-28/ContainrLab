@@ -7,6 +7,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Terminal as Xterm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
+import { DISPLAY_API_BASE } from "@/lib/api";
 
 const OPEN_DELAY_MS = 500;
 
@@ -47,10 +48,18 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const host = window.location.host;
     const params = new URLSearchParams({ shell, token });
-    const wsUrl = `${protocol}://${host}/ws/terminal/${sessionId}?${params.toString()}`;
+    let wsUrl: string;
+    try {
+      const apiUrl = new URL(DISPLAY_API_BASE);
+      const wsProtocol = apiUrl.protocol === "https:" ? "wss" : "ws";
+      const basePath = apiUrl.pathname.replace(/\/$/, "");
+      wsUrl = `${wsProtocol}://${apiUrl.host}${basePath}/ws/terminal/${sessionId}?${params.toString()}`;
+    } catch {
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = window.location.host;
+      wsUrl = `${protocol}://${host}/ws/terminal/${sessionId}?${params.toString()}`;
+    }
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
 

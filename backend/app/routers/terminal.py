@@ -4,7 +4,8 @@ import asyncio
 import contextlib
 from urllib.parse import urlencode, urlparse, urlunparse
 
-import httpx  # type: ignore[import]
+import websockets
+from websockets.exceptions import ConnectionClosed as WsConnectionClosed, InvalidHandshake, InvalidURI
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..services.auth_service import hash_token
@@ -48,28 +49,43 @@ async def terminal_proxy(websocket: WebSocket, session_id: str, shell: str = "/b
         return
     runner_url = _build_runner_ws_url(session_id, shell)
 
-    async with httpx.AsyncClient(timeout=None) as client:
-        try:
-            async with client.ws_connect(runner_url) as runner_ws:
-                async def backend_to_runner() -> None:
-                    try:
-                        while True:
-                            message = await websocket.receive_text()
-                            await runner_ws.send_text(message)
-                    except WebSocketDisconnect:
-                        await runner_ws.aclose()
-                    except Exception:
-                        await runner_ws.aclose()
+    try:
+        async with websockets.connect(runner_url, ping_interval=None) as runner_ws:
+            async def backend_to_runner() -> None:
+                try:
+                    while True:
+                        message = await websocket.receive()
+                        if message["type"] == "websocket.disconnect":
+                            break
+                        data_text = message.get("text")
+                        data_bytes = message.get("bytes")
+                        if data_text is not None:
+                            await runner_ws.send(data_text)
+                        elif data_bytes is not None:
+                            await runner_ws.send(data_bytes)
+                except WebSocketDisconnect:
+                    pass
+                finally:
+                    with contextlib.suppress(Exception):
+                        await runner_ws.close()
 
-                async def runner_to_backend() -> None:
-                    async for message in runner_ws.iter_text():
-                        await websocket.send_text(message)
+            async def runner_to_backend() -> None:
+                try:
+                    async for message in runner_ws:
+                        if isinstance(message, (bytes, bytearray)):
+                            await websocket.send_bytes(message)
+                        else:
+                            await websocket.send_text(str(message))
+                except WsConnectionClosed:
+                    pass
 
-                await asyncio.gather(backend_to_runner(), runner_to_backend())
-        except (httpx.WebSocketReadError, httpx.ConnectError) as exc:
-            await websocket.close(code=1011, reason=f"Runner terminal unavailable: {exc}")
-        except WebSocketDisconnect:
-            pass
-        finally:
-            with contextlib.suppress(Exception):
-                await websocket.close()
+            await asyncio.gather(backend_to_runner(), runner_to_backend())
+    except (InvalidURI, InvalidHandshake) as exc:
+        await websocket.close(code=1011, reason=f"Runner terminal handshake failed: {exc}")
+    except OSError as exc:
+        await websocket.close(code=1011, reason=f"Runner terminal unavailable: {exc}")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        with contextlib.suppress(Exception):
+            await websocket.close()

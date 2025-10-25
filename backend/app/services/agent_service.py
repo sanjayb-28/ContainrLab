@@ -8,6 +8,7 @@ from collections import defaultdict, deque
 import json
 from dataclasses import dataclass
 from typing import Any, Callable, Deque, Dict, Optional
+from string import Template
 
 import httpx  # type: ignore[import]
 
@@ -53,8 +54,8 @@ EXPLAIN_TEMPLATE = (
     "Learner request:\n{prompt}"
 )
 
-PATCH_TEMPLATE = (
-    "You are ContainrLab's Docker assistant. The learner is working on lab '{lab_slug}' and has asked for a patch.\n"
+PATCH_TEMPLATE = Template(
+    "You are ContainrLab's Docker assistant. The learner is working on lab '$lab_slug' and has asked for a patch.\n"
     "Review the prompt and return ONLY a JSON object (no Markdown, no prose outside JSON) with the following shape:\n\n"
     "{\n"
     '  "message": "<short summary of the changes>",\n'
@@ -71,7 +72,7 @@ PATCH_TEMPLATE = (
     "- Always include absolute paths rooted at /workspace.\n"
     "- Provide the full file content for each file listed.\n"
     "- If no concrete patch is appropriate, return an empty array for `files` and explain why in `message`.\n\n"
-    "Learner prompt:\n{prompt}"
+    "Learner prompt:\n$prompt"
 )
 
 
@@ -220,7 +221,7 @@ class AgentService:
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": PATCH_TEMPLATE.format(lab_slug=slug, prompt=cleaned_prompt)}],
+                    "parts": [{"text": PATCH_TEMPLATE.substitute(lab_slug=slug, prompt=cleaned_prompt)}],
                 }
             ],
             "generationConfig": {

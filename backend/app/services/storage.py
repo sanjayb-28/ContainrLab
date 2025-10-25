@@ -32,6 +32,7 @@ class Storage:
         self._db_path = (db_path or DEFAULT_SQLITE_PATH).resolve()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._user_columns: set[str] = set()
         try:
             self._connection = sqlite3.connect(
                 self._db_path,
@@ -90,6 +91,13 @@ class Storage:
                 self._ensure_column("sessions", "user_id", "ALTER TABLE sessions ADD COLUMN user_id TEXT")
                 self._ensure_column("sessions", "expires_at", "ALTER TABLE sessions ADD COLUMN expires_at TEXT")
                 self._ensure_column("sessions", "ended_at", "ALTER TABLE sessions ADD COLUMN ended_at TEXT")
+                if self._table_has_column("users", "updated_at"):
+                    self._connection.execute(
+                        """
+                        UPDATE users
+                        SET updated_at = COALESCE(updated_at, created_at)
+                        """
+                    )
                 self._connection.execute(
                     """
                     UPDATE users
@@ -103,6 +111,7 @@ class Storage:
                     """
                 )
                 self._connection.commit()
+                self._user_columns = self._get_columns("users")
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to initialise database schema: {exc}") from exc
 
@@ -163,6 +172,9 @@ class Storage:
 
     def upsert_user_token(self, email: str, token_hash: str) -> Dict[str, Any]:
         now = _utc_now()
+        if not self._user_columns:
+            with self._lock:
+                self._user_columns = self._get_columns("users")
         try:
             with self._lock:
                 cursor = self._connection.execute(
@@ -173,23 +185,40 @@ class Storage:
                 if row:
                     user_id = row["user_id"]
                     created_at = row["created_at"]
+                    update_fields = ["token_hash = ?", "last_login_at = ?"]
+                    update_values: list[Any] = [token_hash, now]
+                    if "updated_at" in self._user_columns:
+                        update_fields.append("updated_at = ?")
+                        update_values.append(now)
                     self._connection.execute(
-                        """
+                        f"""
                         UPDATE users
-                        SET token_hash = ?, last_login_at = ?
+                        SET {', '.join(update_fields)}
                         WHERE user_id = ?
                         """,
-                        (token_hash, now, user_id),
+                        (*update_values, user_id),
                     )
                 else:
                     user_id = uuid4().hex
                     created_at = now
+                    insert_columns = ["user_id", "email"]
+                    insert_values: list[Any] = [user_id, email.lower()]
+                    if "name" in self._user_columns:
+                        insert_columns.append("name")
+                        insert_values.append(email.lower())
+                    insert_columns.extend(["token_hash", "created_at", "last_login_at"])
+                    insert_values.extend([token_hash, created_at, now])
+                    if "updated_at" in self._user_columns:
+                        insert_columns.append("updated_at")
+                        insert_values.append(now)
+                    placeholders = ", ".join(["?"] * len(insert_columns))
+                    columns_clause = ", ".join(insert_columns)
                     self._connection.execute(
-                        """
-                        INSERT INTO users (user_id, email, token_hash, created_at, last_login_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        f"""
+                        INSERT INTO users ({columns_clause})
+                        VALUES ({placeholders})
                         """,
-                        (user_id, email.lower(), token_hash, created_at, now),
+                        insert_values,
                     )
                 self._connection.commit()
         except sqlite3.Error as exc:
@@ -346,11 +375,20 @@ class Storage:
 
     def _ensure_column(self, table: str, column: str, statement: str) -> None:
         """Add a column to an existing table if it is missing."""
-        cursor = self._connection.execute(f"PRAGMA table_info({table})")
-        existing = {row[1] for row in cursor.fetchall()}
+        existing = self._get_columns(table)
         if column in existing:
             return
         self._connection.execute(statement)
+        existing.add(column)
+        if table == "users":
+            self._user_columns = existing
+
+    def _get_columns(self, table: str) -> set[str]:
+        cursor = self._connection.execute(f"PRAGMA table_info({table})")
+        return {row[1] for row in cursor.fetchall()}
+
+    def _table_has_column(self, table: str, column: str) -> bool:
+        return column in self._get_columns(table)
 
 
 @lru_cache
