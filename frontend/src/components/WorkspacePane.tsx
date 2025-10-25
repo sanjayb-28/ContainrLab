@@ -1,16 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import FileExplorer, { FileExplorerHandle } from "@/components/FileExplorer";
 import EditorPane from "@/components/EditorPane";
 import { useLabSession } from "@/components/LabSessionProvider";
+import { buildSession, fetchSession } from "@/lib/labs";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const WORKSPACE_ROOT = "/workspace";
+const AUTOSAVE_STORAGE_KEY = "containrlab.autosave";
+const BUILD_ON_SAVE_STORAGE_KEY = "containrlab.buildOnSave";
+const STATUS_TIMEOUT_MS = 4000;
 
 type Breadcrumb = {
   label: string;
   path: string;
   isFile: boolean;
+};
+
+type SaveContext = {
+  source: "manual" | "autosave";
 };
 
 function parentPath(path: string | undefined): string {
@@ -39,18 +48,59 @@ function isDescendant(base: string, candidate: string): boolean {
   return candidate.startsWith(prefix);
 }
 
+function readBooleanSetting(key: string, fallback: boolean): boolean {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+  const value = window.localStorage.getItem(key);
+  if (value === null) {
+    return fallback;
+  }
+  return value === "true";
+}
+
+function writeBooleanSetting(key: string, value: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(key, value ? "true" : "false");
+}
+
 export default function WorkspacePane() {
-  const { sessionId } = useLabSession();
+  const { token } = useAuth();
+  const { sessionId, setSession } = useLabSession();
   const explorerRef = useRef<FileExplorerHandle | null>(null);
+  const statusTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [activeFile, setActiveFile] = useState<string | undefined>();
   const [activeDirectory, setActiveDirectory] = useState<string>(WORKSPACE_ROOT);
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(new Set());
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [autosaveEnabled, setAutosaveEnabled] = useState<boolean>(() => readBooleanSetting(AUTOSAVE_STORAGE_KEY, true));
+  const [buildOnSave, setBuildOnSave] = useState<boolean>(() => readBooleanSetting(BUILD_ON_SAVE_STORAGE_KEY, false));
+  const [buildRunning, setBuildRunning] = useState(false);
 
   useEffect(() => {
     setActiveFile(undefined);
     setActiveDirectory(WORKSPACE_ROOT);
     setDirtyPaths(new Set());
+    setStatusMessage(null);
   }, [sessionId]);
+
+  useEffect(() => () => {
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current);
+    }
+  }, []);
+
+  const showStatus = useCallback((message: string) => {
+    setStatusMessage(message);
+    if (statusTimerRef.current) {
+      clearTimeout(statusTimerRef.current);
+    }
+    statusTimerRef.current = setTimeout(() => {
+      setStatusMessage(null);
+    }, STATUS_TIMEOUT_MS);
+  }, []);
 
   const confirmNavigation = useCallback(
     (targetPath: string): boolean => {
@@ -194,15 +244,62 @@ export default function WorkspacePane() {
     });
   }, []);
 
-  const handleSave = useCallback((path: string) => {
-    setDirtyPaths((prev) => {
-      const next = new Set(prev);
-      next.delete(path);
+  const handleSaved = useCallback(
+    async (path: string, { source }: SaveContext) => {
+      setDirtyPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+      const directory = parentPath(path);
+      void explorerRef.current?.refresh(directory);
+      showStatus(source === "autosave" ? "Changes autosaved." : "File saved.");
+
+      if (!buildOnSave || !sessionId || !token) {
+        return;
+      }
+
+      setBuildRunning(true);
+      showStatus("Running Docker build...");
+      try {
+        await buildSession(sessionId, token);
+        showStatus("Build completed successfully.");
+        const detail = await fetchSession(sessionId, token, 5);
+        setSession(detail);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Build failed";
+        showStatus(`Build failed: ${message}`);
+      } finally {
+        setBuildRunning(false);
+      }
+    },
+    [buildOnSave, sessionId, setSession, showStatus, token]
+  );
+
+  const handleSaveError = useCallback(
+    (_path: string | undefined, message: string) => {
+      showStatus(`Save failed: ${message}`);
+    },
+    [showStatus]
+  );
+
+  const toggleAutosave = useCallback(() => {
+    setAutosaveEnabled((prev) => {
+      const next = !prev;
+      writeBooleanSetting(AUTOSAVE_STORAGE_KEY, next);
+      showStatus(`Autosave ${next ? "enabled" : "disabled"}.`);
       return next;
     });
-    const directory = parentPath(path);
-    void explorerRef.current?.refresh(directory);
-  }, []);
+  }, [showStatus]);
+
+  const toggleBuildOnSave = useCallback(() => {
+    setBuildOnSave((prev) => {
+      const next = !prev;
+      writeBooleanSetting(BUILD_ON_SAVE_STORAGE_KEY, next);
+      showStatus(`Build on save ${next ? "enabled" : "disabled"}.`);
+      return next;
+    });
+  }, [showStatus]);
 
   const currentTarget = activeFile ?? activeDirectory;
   const breadcrumbs = useMemo(() => {
@@ -241,6 +338,34 @@ export default function WorkspacePane() {
         />
       </div>
       <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="inline-flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border border-slate-600 bg-slate-900 text-sky-400 focus:ring-sky-400"
+                checked={autosaveEnabled}
+                onChange={toggleAutosave}
+              />
+              Autosave
+            </label>
+            <label className="inline-flex items-center gap-2 text-slate-300">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border border-slate-600 bg-slate-900 text-sky-400 focus:ring-sky-400"
+                checked={buildOnSave}
+                onChange={toggleBuildOnSave}
+                disabled={!token || !sessionId}
+              />
+              Build on save
+            </label>
+            {buildOnSave && (!token || !sessionId) && (
+              <span className="text-[11px] text-amber-200">Sign in and start a session to run builds automatically.</span>
+            )}
+            {buildRunning && <span className="text-[11px] text-sky-300">Building…</span>}
+          </div>
+          {statusMessage && <span className="text-[11px] text-slate-400">{statusMessage}</span>}
+        </div>
         <nav className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
           {breadcrumbs.map((crumb, index) => {
             const isLast = index === breadcrumbs.length - 1;
@@ -266,7 +391,13 @@ export default function WorkspacePane() {
             );
           })}
         </nav>
-        <EditorPane path={activeFile} onDirtyChange={handleDirtyChange} onSave={handleSave} />
+        <EditorPane
+          path={activeFile}
+          autosaveEnabled={autosaveEnabled}
+          onDirtyChange={handleDirtyChange}
+          onSave={handleSaved}
+          onSaveError={handleSaveError}
+        />
       </div>
     </div>
   );
