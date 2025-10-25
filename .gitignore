@@ -33,4 +33,5 @@ sqlite/*.db-*
 # Misc
 coverage/
 *.swp
-docs/
+docs/plan.txt
+docs/roadmap.txt
