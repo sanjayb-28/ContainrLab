@@ -19,9 +19,9 @@ def _log(level: int, message: str, metadata: Dict[str, Any], **extra: Any) -> No
     payload = {**metadata, **extra}
     logger.log(level, message, extra=payload)
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-1.5-flash")
+DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-flash-latest")
 DEFAULT_TEMPERATURE = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
-DEFAULT_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "512"))
+DEFAULT_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "2048"))
 DEFAULT_TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "20"))
 
 FALLBACK_HINT = "Remember to install dependencies before building."

@@ -21,6 +21,7 @@ This guide walks through standing up the full ContainrLab stack on a single deve
 2. **Provide a Gemini API key (optional but recommended)**
    - Follow the instructions in [`docs/GEMINI_SETUP.md`](./GEMINI_SETUP.md) to place your key in `compose/secrets/GEMINI_API_KEY.txt` or export `GEMINI_API_KEY`.
    - Without a key the agent will fall back to deterministic stub responses. The UI will still function, including patch suggestions, thanks to the built-in fallback.
+   - The stack now targets `models/gemini-flash-latest` by default. If your API key does not have access to that model, override it by setting `GEMINI_MODEL` before running `docker compose up`.
 
 3. **Bring the stack online**
    ```bash
