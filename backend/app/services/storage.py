@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from judge.models import JudgeResult
 
@@ -50,6 +51,13 @@ class Storage:
 
     def init(self) -> None:
         schema = """
+        CREATE TABLE IF NOT EXISTS users (
+            user_id TEXT PRIMARY KEY,
+            email TEXT NOT NULL UNIQUE,
+            token_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_login_at TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS sessions (
             session_id TEXT PRIMARY KEY,
             lab_slug TEXT NOT NULL,
@@ -57,7 +65,9 @@ class Storage:
             ttl_seconds INTEGER NOT NULL,
             created_at TEXT NOT NULL,
             expires_at TEXT NOT NULL,
-            ended_at TEXT
+            ended_at TEXT,
+            user_id TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE SET NULL
         );
         CREATE TABLE IF NOT EXISTS attempts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +85,7 @@ class Storage:
         try:
             with self._lock:
                 self._connection.executescript(schema)
+                self._ensure_column("sessions", "user_id", "ALTER TABLE sessions ADD COLUMN user_id TEXT")
                 self._ensure_column("sessions", "expires_at", "ALTER TABLE sessions ADD COLUMN expires_at TEXT")
                 self._ensure_column("sessions", "ended_at", "ALTER TABLE sessions ADD COLUMN ended_at TEXT")
                 self._connection.commit()
@@ -88,6 +99,7 @@ class Storage:
         lab_slug: str,
         runner_container: str,
         ttl_seconds: int,
+        user_id: str,
     ) -> dict[str, str]:
         created_at = _utc_now()
         expires_at = (datetime.fromisoformat(created_at) + timedelta(seconds=ttl_seconds)).isoformat()
@@ -95,10 +107,10 @@ class Storage:
             with self._lock:
                 self._connection.execute(
                     """
-                    INSERT OR REPLACE INTO sessions (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO sessions (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, None),
+                    (session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, None, user_id),
                 )
                 self._connection.commit()
         except sqlite3.Error as exc:
@@ -135,11 +147,81 @@ class Storage:
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to persist attempt for session '{session_id}': {exc}") from exc
 
+    def upsert_user_token(self, email: str, token_hash: str) -> Dict[str, Any]:
+        now = _utc_now()
+        try:
+            with self._lock:
+                cursor = self._connection.execute(
+                    "SELECT user_id, created_at FROM users WHERE email = ?",
+                    (email.lower(),),
+                )
+                row = cursor.fetchone()
+                if row:
+                    user_id = row["user_id"]
+                    created_at = row["created_at"]
+                    self._connection.execute(
+                        """
+                        UPDATE users
+                        SET token_hash = ?, last_login_at = ?
+                        WHERE user_id = ?
+                        """,
+                        (token_hash, now, user_id),
+                    )
+                else:
+                    user_id = uuid4().hex
+                    created_at = now
+                    self._connection.execute(
+                        """
+                        INSERT INTO users (user_id, email, token_hash, created_at, last_login_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (user_id, email.lower(), token_hash, created_at, now),
+                    )
+                self._connection.commit()
+        except sqlite3.Error as exc:
+            raise StorageError(f"Failed to persist user for '{email}': {exc}") from exc
+        return {
+            "user_id": user_id,
+            "email": email.lower(),
+            "created_at": created_at,
+            "last_login_at": now,
+        }
+
+    def get_user_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT user_id, email, created_at, last_login_at
+                FROM users
+                WHERE token_hash = ?
+                """,
+                (token_hash,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT user_id, email, created_at, last_login_at
+                FROM users
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             cursor = self._connection.execute(
                 """
-                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at, user_id
                 FROM sessions
                 WHERE session_id = ?
                 """,
@@ -208,12 +290,23 @@ class Storage:
             "notes": json.loads(row["notes"]) if row["notes"] else {},
         }
 
+    def assert_session_owner(self, session_id: str, user_id: str) -> Dict[str, Any]:
+        session = self.get_session(session_id)
+        if session is None:
+            raise StorageError(f"Session '{session_id}' not found")
+        owner = session.get("user_id")
+        if owner is None:
+            raise StorageError(f"Session '{session_id}' is not associated with a user yet")
+        if owner != user_id:
+            raise StorageError(f"Session '{session_id}' does not belong to the authenticated user")
+        return session
+
     def list_expired_sessions(self, before: datetime | None = None) -> List[Dict[str, Any]]:
         cutoff = (before or datetime.now(timezone.utc)).isoformat()
         with self._lock:
             cursor = self._connection.execute(
                 """
-                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, user_id
                 FROM sessions
                 WHERE ended_at IS NULL
                 AND expires_at IS NOT NULL

@@ -25,16 +25,16 @@ export async function requestHint(
   sessionId: string,
   prompt: string,
   labSlug?: string,
-  init?: RequestInit
+  token?: string
 ): Promise<AgentResponse> {
-  return apiPost("/agent/hint", buildPayload(sessionId, prompt, labSlug), init);
+  return apiPost("/agent/hint", buildPayload(sessionId, prompt, labSlug), { token });
 }
 
 export async function requestExplain(
   sessionId: string,
   prompt: string,
   labSlug?: string,
-  init?: RequestInit
+  token?: string
 ): Promise<AgentResponse> {
-  return apiPost("/agent/explain", buildPayload(sessionId, prompt, labSlug), init);
+  return apiPost("/agent/explain", buildPayload(sessionId, prompt, labSlug), { token });
 }

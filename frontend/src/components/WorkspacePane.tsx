@@ -3,12 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FileExplorer, { FileExplorerHandle } from "@/components/FileExplorer";
 import EditorPane from "@/components/EditorPane";
+import { useLabSession } from "@/components/LabSessionProvider";
 
 const WORKSPACE_ROOT = "/workspace";
-
-type Props = {
-  sessionId?: string;
-};
 
 type Breadcrumb = {
   label: string;
@@ -42,7 +39,8 @@ function isDescendant(base: string, candidate: string): boolean {
   return candidate.startsWith(prefix);
 }
 
-export default function WorkspacePane({ sessionId }: Props) {
+export default function WorkspacePane() {
+  const { sessionId } = useLabSession();
   const explorerRef = useRef<FileExplorerHandle | null>(null);
   const [activeFile, setActiveFile] = useState<string | undefined>();
   const [activeDirectory, setActiveDirectory] = useState<string>(WORKSPACE_ROOT);
@@ -94,16 +92,13 @@ export default function WorkspacePane({ sessionId }: Props) {
 
   const handleEntryCreated = useCallback(
     (path: string, kind: "file" | "directory") => {
+      if (!confirmNavigation(path)) {
+        return;
+      }
       if (kind === "file") {
-        if (!confirmNavigation(path)) {
-          return;
-        }
         setActiveFile(path);
         setActiveDirectory(parentPath(path));
       } else {
-        if (!confirmNavigation(path)) {
-          return;
-        }
         setActiveFile(undefined);
         setActiveDirectory(path);
       }
@@ -116,50 +111,47 @@ export default function WorkspacePane({ sessionId }: Props) {
     [confirmNavigation]
   );
 
-  const handleEntryRenamed = useCallback(
-    (oldPath: string, newPath: string) => {
-      setDirtyPaths((prev) => {
-        const next = new Set<string>();
-        prev.forEach((dirty) => {
-          if (dirty === oldPath) {
-            return;
-          }
-          if (isDescendant(oldPath, dirty)) {
-            return;
-          }
-          next.add(dirty);
-        });
-        return next;
+  const handleEntryRenamed = useCallback((oldPath: string, newPath: string) => {
+    setDirtyPaths((prev) => {
+      const next = new Set<string>();
+      prev.forEach((dirty) => {
+        if (dirty === oldPath) {
+          return;
+        }
+        if (isDescendant(oldPath, dirty)) {
+          return;
+        }
+        next.add(dirty);
       });
+      return next;
+    });
 
-      setActiveFile((prev) => {
-        if (!prev) {
-          return prev;
-        }
-        if (prev === oldPath) {
-          return newPath;
-        }
-        if (isDescendant(oldPath, prev)) {
-          return prev.replace(oldPath, newPath);
-        }
+    setActiveFile((prev) => {
+      if (!prev) {
         return prev;
-      });
+      }
+      if (prev === oldPath) {
+        return newPath;
+      }
+      if (isDescendant(oldPath, prev)) {
+        return prev.replace(oldPath, newPath);
+      }
+      return prev;
+    });
 
-      setActiveDirectory((prev) => {
-        if (!prev) {
-          return prev;
-        }
-        if (prev === oldPath) {
-          return newPath;
-        }
-        if (isDescendant(oldPath, prev)) {
-          return prev.replace(oldPath, newPath);
-        }
+    setActiveDirectory((prev) => {
+      if (!prev) {
         return prev;
-      });
-    },
-    []
-  );
+      }
+      if (prev === oldPath) {
+        return newPath;
+      }
+      if (isDescendant(oldPath, prev)) {
+        return prev.replace(oldPath, newPath);
+      }
+      return prev;
+    });
+  }, []);
 
   const handleEntryDeleted = useCallback((path: string) => {
     setDirtyPaths((prev) => {
@@ -220,7 +212,7 @@ export default function WorkspacePane({ sessionId }: Props) {
     }
     const relative = currentTarget
       .replace(WORKSPACE_ROOT, "")
-      .replace(/^\/+/, "")
+      .replace(/^\/+/u, "")
       .split("/")
       .filter(Boolean);
     let accumulator = WORKSPACE_ROOT;
@@ -238,7 +230,6 @@ export default function WorkspacePane({ sessionId }: Props) {
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
         <FileExplorer
           ref={explorerRef}
-          sessionId={sessionId}
           activeFile={activeFile}
           activeDirectory={activeDirectory}
           dirtyPaths={dirtyPaths}
@@ -275,12 +266,7 @@ export default function WorkspacePane({ sessionId }: Props) {
             );
           })}
         </nav>
-        <EditorPane
-          sessionId={sessionId}
-          path={activeFile}
-          onDirtyChange={handleDirtyChange}
-          onSave={handleSave}
-        />
+        <EditorPane path={activeFile} onDirtyChange={handleDirtyChange} onSave={handleSave} />
       </div>
     </div>
   );

@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { useLabSession } from "@/components/LabSessionProvider";
 import { fetchInspector, type InspectorSummary } from "@/lib/labs";
+import { useCallback, useEffect, useState } from "react";
 
 type MetricRow = {
   label: string;
   path: string;
   display: string;
   delta?: number;
-};
-
-type Props = {
-  sessionId?: string;
 };
 
 function getNestedNumber(metrics: Record<string, unknown> | undefined, path: string): number | undefined {
@@ -44,24 +42,34 @@ function formatDelta(delta?: number): JSX.Element | null {
   );
 }
 
-export default function InspectorPanel({ sessionId }: Props) {
+export default function InspectorPanel() {
+  const { token } = useAuth();
+  const { sessionId } = useLabSession();
   const [summary, setSummary] = useState<InspectorSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const load = async (id: string) => {
-    setLoading(true);
-    try {
-      const data = await fetchInspector(id);
-      setSummary(data);
-      setError(null);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Inspector unavailable";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(
+    async (id: string) => {
+      if (!token) {
+        setSummary(null);
+        setError("Sign in to view inspector metrics.");
+        return;
+      }
+      setLoading(true);
+      try {
+        const data = await fetchInspector(id, token);
+        setSummary(data);
+        setError(null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Inspector unavailable";
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token]
+  );
 
   useEffect(() => {
     if (!sessionId) {
@@ -70,10 +78,14 @@ export default function InspectorPanel({ sessionId }: Props) {
       return;
     }
     void load(sessionId);
-  }, [sessionId]);
+  }, [load, sessionId]);
 
   if (!sessionId) {
     return <p className="text-sm text-slate-500">Start a session to view build metrics.</p>;
+  }
+
+  if (!token) {
+    return <p className="text-sm text-slate-500">Sign in to load inspector metrics.</p>;
   }
 
   if (loading && !summary) {
@@ -191,9 +203,7 @@ export default function InspectorPanel({ sessionId }: Props) {
           <div className="mt-4 space-y-3 text-xs text-slate-300">
             <div className="flex items-center justify-between">
               <p className="font-semibold uppercase tracking-wide text-slate-400">Build Metrics</p>
-              {previousExists && (
-                <span className="text-[11px] text-slate-500">Compared with previous attempt</span>
-              )}
+              {previousExists && <span className="text-[11px] text-slate-500">Compared with previous attempt</span>}
             </div>
             <ul className="space-y-2">
               {metricRows.map((row) => (

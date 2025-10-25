@@ -50,10 +50,11 @@ export async function fetchLab(slug: string): Promise<LabDetail> {
   return apiGet(`/labs/${slug}`);
 }
 
-export async function fetchSession(sessionId: string): Promise<SessionDetail> {
-  return apiGet(`/sessions/${sessionId}`);
+export async function fetchSession(sessionId: string, token: string, limit?: number): Promise<SessionDetail> {
+  const params = limit && limit > 0 ? `?limit=${limit}` : "";
+  return apiGet(`/sessions/${sessionId}${params}`, { token });
 }
 
-export async function fetchInspector(sessionId: string): Promise<InspectorSummary> {
-  return apiGet(`/sessions/${sessionId}/inspector`);
+export async function fetchInspector(sessionId: string, token: string): Promise<InspectorSummary> {
+  return apiGet(`/sessions/${sessionId}/inspector`, { token });
 }

@@ -6,6 +6,7 @@ import httpx  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
+from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
 from ..services.runner_client import RunnerClient, get_runner_client
 from ..services.storage import Storage, StorageError, get_storage
 
@@ -92,7 +93,10 @@ async def build_session_image(
     session_id: str,
     request: BuildRequestBody,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> BuildResponse:
+    ensure_session_owner(storage, session_id, user)
     try:
         runner_payload = await runner.build(
             session_id=session_id,
@@ -115,7 +119,10 @@ async def run_session_container(
     session_id: str,
     request: RunRequestBody,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> RunResponse:
+    ensure_session_owner(storage, session_id, user)
     try:
         runner_payload = await runner.run(
             session_id=session_id,
@@ -142,7 +149,10 @@ async def stop_session_container(
     session_id: str,
     request: RunStopRequestBody,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> RunStopResponse:
+    ensure_session_owner(storage, session_id, user)
     try:
         runner_payload = await runner.stop_run(
             session_id=session_id,
@@ -168,10 +178,13 @@ async def get_session_detail(
     session_id: str,
     limit: int | None = None,
     storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> SessionDetailResponse:
     session = storage.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if session.get("user_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="Session does not belong to the authenticated user")
     try:
         attempts = storage.list_attempts(session_id, limit=limit if limit and limit > 0 else None)
     except StorageError as exc:  # pragma: no cover - list_attempts currently cannot raise
@@ -206,10 +219,13 @@ async def get_session_detail(
 async def inspect_session(
     session_id: str,
     storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> InspectorResponse:
     session = storage.get_session(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
+    if session.get("user_id") != user.user_id:
+        raise HTTPException(status_code=403, detail="Session does not belong to the authenticated user")
 
     attempts = storage.list_attempts(session_id)
     latest = attempts[0] if attempts else None

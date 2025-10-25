@@ -7,6 +7,8 @@ import {
   listPath,
   renameEntry,
 } from "@/lib/fs";
+import { useAuth } from "@/components/AuthProvider";
+import { useLabSession } from "@/components/LabSessionProvider";
 import {
   forwardRef,
   useCallback,
@@ -21,12 +23,13 @@ const WORKSPACE_ROOT = "/workspace";
 
 type EntryKind = "file" | "directory";
 
+type EntryMap = Record<string, FsEntry[]>;
+
 export type FileExplorerHandle = {
   refresh: (path?: string) => Promise<void>;
 };
 
 export type FileExplorerProps = {
-  sessionId?: string;
   activeFile?: string;
   activeDirectory: string;
   dirtyPaths: Set<string>;
@@ -36,8 +39,6 @@ export type FileExplorerProps = {
   onEntryRenamed: (oldPath: string, newPath: string) => void;
   onEntryDeleted: (path: string) => void;
 };
-
-type EntryMap = Record<string, FsEntry[]>;
 
 function parentPath(path: string): string {
   if (!path || path === WORKSPACE_ROOT) {
@@ -83,26 +84,18 @@ function formatDirtyIndicator(dirtyPaths: Set<string>, entryPath: string, isDire
 
 const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
   (
-    {
-      sessionId,
-      activeFile,
-      activeDirectory,
-      dirtyPaths,
-      onSelectFile,
-      onSelectDirectory,
-      onEntryCreated,
-      onEntryRenamed,
-      onEntryDeleted,
-    },
+    { activeFile, activeDirectory, dirtyPaths, onSelectFile, onSelectDirectory, onEntryCreated, onEntryRenamed, onEntryDeleted },
     ref
   ) => {
+    const { token } = useAuth();
+    const { sessionId } = useLabSession();
     const [entriesByPath, setEntriesByPath] = useState<EntryMap>({});
     const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set([WORKSPACE_ROOT]));
     const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
 
-    const sessionRef = useRef<string | undefined>();
-    sessionRef.current = sessionId;
+    const sessionRef = useRef<string | null>(null);
+    sessionRef.current = sessionId ?? null;
 
     const setLoading = useCallback((path: string, next: boolean) => {
       setLoadingPaths((prev) => {
@@ -140,11 +133,18 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
     const fetchEntries = useCallback(
       async (path: string): Promise<void> => {
         if (!sessionId) {
+          setEntriesByPath({});
+          setError("Start a session to browse files.");
+          return;
+        }
+        if (!token) {
+          setEntriesByPath({});
+          setError("Sign in to access the workspace explorer.");
           return;
         }
         setLoading(path, true);
         try {
-          const response = await listPath(sessionId, path === WORKSPACE_ROOT ? undefined : path);
+          const response = await listPath(sessionId, path === WORKSPACE_ROOT ? undefined : path, token);
           if (sessionRef.current !== sessionId) {
             return;
           }
@@ -157,17 +157,17 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
           setLoading(path, false);
         }
       },
-      [sessionId, setLoading, updateEntryMap]
+      [sessionId, token, setLoading, updateEntryMap]
     );
 
     useEffect(() => {
       setEntriesByPath({});
       setExpandedPaths(new Set([WORKSPACE_ROOT]));
       setError(null);
-      if (sessionId) {
+      if (sessionId && token) {
         void fetchEntries(WORKSPACE_ROOT);
       }
-    }, [fetchEntries, sessionId]);
+    }, [fetchEntries, sessionId, token]);
 
     useImperativeHandle(
       ref,
@@ -199,229 +199,137 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
     );
 
     const handleCreate = useCallback(
-      async (kind: EntryKind) => {
-        if (!sessionId) {
+      async (kind: EntryKind, directory: string) => {
+        if (!sessionId || !token) {
+          setError("Sign in and start a session before creating files.");
           return;
         }
-        const baseDirectory = activeDirectory || WORKSPACE_ROOT;
-        const promptLabel = kind === "file" ? "Enter file name" : "Enter folder name";
-        const name = window.prompt(promptLabel, "");
-        if (!name) {
-          return;
-        }
-        const sanitized = name.trim();
-        if (!sanitized) {
-          return;
-        }
-        const fullPath = joinPath(baseDirectory, sanitized);
+        const normalized = kind === "file" ? joinPath(directory, "new-file.txt") : joinPath(directory, "new-directory");
         try {
-          await createEntry(sessionId, fullPath, kind, "");
-          await fetchEntries(baseDirectory);
-          if (kind === "directory") {
-            setExpandedPaths((prev) => new Set(prev).add(fullPath));
+          if (kind === "file") {
+            await createEntry(sessionId, normalized, "file", "", token);
+          } else {
+            await createEntry(sessionId, normalized, "directory", undefined, token);
           }
-          onEntryCreated(fullPath, kind);
+          removeEntryTree(directory);
+          await fetchEntries(directory);
+          onEntryCreated(normalized, kind);
         } catch (err) {
-          const message = err instanceof Error ? err.message : `Failed to create ${kind}.`;
+          const message = err instanceof Error ? err.message : "Failed to create entry";
           setError(message);
         }
       },
-      [activeDirectory, fetchEntries, onEntryCreated, sessionId]
+      [fetchEntries, onEntryCreated, removeEntryTree, sessionId, token]
     );
 
     const handleRename = useCallback(
-      async (entry: FsEntry) => {
-        if (!sessionId) {
+      async (source: string, destination: string) => {
+        if (!sessionId || !token) {
+          setError("Sign in and start a session before renaming files.");
           return;
         }
-        const baseDirectory = parentPath(entry.path);
-        const suggested = entry.name;
-        const nextName = window.prompt(`Rename ${entry.is_dir ? "folder" : "file"}`, suggested);
-        if (!nextName) {
-          return;
-        }
-        const trimmed = nextName.trim();
-        if (!trimmed || trimmed === suggested) {
-          return;
-        }
-        const newPath = joinPath(baseDirectory, trimmed);
         try {
-          await renameEntry(sessionId, entry.path, newPath);
-          await fetchEntries(baseDirectory);
-          if (entry.is_dir) {
-            removeEntryTree(entry.path);
-            setExpandedPaths((prev) => {
-              const next = new Set(prev);
-              if (next.has(entry.path)) {
-                next.delete(entry.path);
-                next.add(newPath);
-              }
-              return next;
-            });
-          }
-          onEntryRenamed(entry.path, newPath);
+          await renameEntry(sessionId, source, destination, token);
+          removeEntryTree(parentPath(source));
+          await fetchEntries(parentPath(destination));
+          onEntryRenamed(source, destination);
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Failed to rename.";
+          const message = err instanceof Error ? err.message : "Failed to rename entry";
           setError(message);
         }
       },
-      [fetchEntries, onEntryRenamed, removeEntryTree, sessionId]
+      [fetchEntries, onEntryRenamed, removeEntryTree, sessionId, token]
     );
 
     const handleDelete = useCallback(
-      async (entry: FsEntry) => {
-        if (!sessionId) {
+      async (target: string) => {
+        if (!sessionId || !token) {
+          setError("Sign in and start a session before deleting files.");
           return;
         }
-        const confirmed = window.confirm(`Delete ${entry.is_dir ? "folder" : "file"} '${entry.name}'?`);
-        if (!confirmed) {
-          return;
-        }
-        const baseDirectory = parentPath(entry.path);
         try {
-          await deleteEntry(sessionId, entry.path);
-          await fetchEntries(baseDirectory);
-          removeEntryTree(entry.path);
-          onEntryDeleted(entry.path);
+          await deleteEntry(sessionId, target, token);
+          removeEntryTree(target);
+          await fetchEntries(parentPath(target));
+          onEntryDeleted(target);
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Failed to delete.";
+          const message = err instanceof Error ? err.message : "Failed to delete entry";
           setError(message);
         }
       },
-      [fetchEntries, onEntryDeleted, removeEntryTree, sessionId]
+      [fetchEntries, onEntryDeleted, removeEntryTree, sessionId, token]
     );
 
-    const directoryEntries = useMemo(() => entriesByPath[WORKSPACE_ROOT] ?? [], [entriesByPath]);
-    const isLoadingRoot = loadingPaths.has(WORKSPACE_ROOT);
-
-    const renderEntries = useCallback(
-      (path: string, depth: number): JSX.Element | null => {
-        const entries = entriesByPath[path];
-        if (!entries || entries.length === 0) {
-          return null;
-        }
-        const sorted = [...entries].sort((a, b) => {
-          if (a.is_dir === b.is_dir) {
-            return a.name.localeCompare(b.name);
-          }
-          return a.is_dir ? -1 : 1;
-        });
-
-        return (
-          <ul>
-            {sorted.map((entry) => {
-              const isExpanded = expandedPaths.has(entry.path);
-              const isLoading = loadingPaths.has(entry.path);
-              const isActiveFile = entry.path === activeFile;
-              const isActiveDirectory = entry.path === activeDirectory;
-              const showDirtyIndicator = formatDirtyIndicator(dirtyPaths, entry.path, entry.is_dir);
-              return (
-                <li key={entry.path}>
-                  <div
-                    className={`flex items-center gap-2 px-2 py-1 text-sm ${
-                      isActiveFile || isActiveDirectory
-                        ? "bg-slate-800/70 text-slate-100"
-                        : "hover:bg-slate-800/40"
-                    }`}
-                    style={{ paddingLeft: depth * 12 }}
-                  >
-                    {entry.is_dir ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleDirectory(entry.path)}
-                        className="text-slate-400 transition hover:text-slate-200"
-                        aria-label={isExpanded ? "Collapse folder" : "Expand folder"}
-                      >
-                        {isExpanded ? "▾" : "▸"}
-                      </button>
-                    ) : (
-                      <span className="w-3" />
-                    )}
-                    <button
-                      type="button"
-                      className={`flex-1 text-left ${entry.is_dir ? "font-medium" : ""}`}
-                      onClick={() =>
-                        entry.is_dir ? onSelectDirectory(entry.path) : onSelectFile(entry.path)
-                      }
-                    >
-                      {entry.is_dir ? "📁" : "📄"} {entry.name}
-                      {showDirtyIndicator && <span className="ml-1 text-xs text-amber-300">●</span>}
-                    </button>
-                    {isLoading && <span className="text-xs text-slate-400">…</span>}
-                    <div className="flex gap-1 text-xs">
-                      <button
-                        type="button"
-                        className="rounded px-2 py-1 text-slate-400 hover:bg-slate-800/80 hover:text-slate-100"
-                        onClick={() => handleRename(entry)}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded px-2 py-1 text-red-300 hover:bg-red-500/10"
-                        onClick={() => handleDelete(entry)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                  {entry.is_dir && isExpanded && renderEntries(entry.path, depth + 1)}
-                </li>
-              );
-            })}
-          </ul>
-        );
-      },
-      [
-        activeDirectory,
-        activeFile,
-        dirtyPaths,
-        entriesByPath,
-        expandedPaths,
-        handleDelete,
-        handleRename,
-        loadingPaths,
-        onSelectDirectory,
-        onSelectFile,
-        toggleDirectory,
-      ]
-    );
-
-    if (!sessionId) {
-      return <p className="text-sm text-slate-500">Start a session to explore files.</p>;
-    }
+    const currentEntries = entriesByPath[activeDirectory] ?? [];
 
     return (
-      <div className="space-y-3 text-sm text-slate-200">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="font-semibold text-slate-100">Workspace</div>
-          <div className="flex gap-2">
+          <h3 className="text-sm font-semibold text-slate-100">Explorer</h3>
+          <div className="flex gap-2 text-xs">
             <button
               type="button"
-              className="rounded bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700"
-              onClick={() => handleCreate("file")}
+              className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => handleCreate("file", activeDirectory)}
+              disabled={!sessionId || !token}
             >
-              New File
+              + File
             </button>
             <button
               type="button"
-              className="rounded bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700"
-              onClick={() => handleCreate("directory")}
+              className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => handleCreate("directory", activeDirectory)}
+              disabled={!sessionId || !token}
             >
-              New Folder
+              + Folder
+            </button>
+            <button
+              type="button"
+              className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => fetchEntries(activeDirectory)}
+              disabled={!sessionId || !token}
+            >
+              Refresh
             </button>
           </div>
         </div>
         {error && <p className="text-xs text-red-300">{error}</p>}
-        <div className="max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950/80">
-          {isLoadingRoot && !directoryEntries.length ? (
-            <p className="px-3 py-2 text-xs text-slate-400">Loading files...</p>
-          ) : directoryEntries.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-slate-400">This workspace is empty.</p>
-          ) : (
-            renderEntries(WORKSPACE_ROOT, 0)
+        <ul className="space-y-1 text-sm">
+          {currentEntries.map((entry) => {
+            const isDirectory = entry.is_dir;
+            const dirty = formatDirtyIndicator(dirtyPaths, entry.path, isDirectory);
+            const isLoading = loadingPaths.has(entry.path);
+            return (
+              <li key={entry.path}>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded px-3 py-2 text-left transition hover:bg-slate-800/80 ${
+                    activeFile === entry.path ? "bg-slate-800" : "bg-transparent"
+                  }`}
+                  onClick={() => (isDirectory ? onSelectDirectory(entry.path) : onSelectFile(entry.path))}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="text-slate-300">{entry.name}</span>
+                    {dirty && <span className="text-xs text-amber-300">●</span>}
+                  </span>
+                  <span className="text-[11px] text-slate-500">
+                    {isLoading ? "…" : isDirectory ? "dir" : `${entry.size ?? 0} B`}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+          {sessionId && token && currentEntries.length === 0 && (
+            <li className="rounded bg-slate-900/60 px-3 py-4 text-xs text-slate-500">
+              This directory is empty.
+            </li>
           )}
-        </div>
+          {(!sessionId || !token) && (
+            <li className="rounded bg-slate-900/60 px-3 py-4 text-xs text-slate-500">
+              {token ? "Start a session to view workspace files." : "Sign in to enable the workspace explorer."}
+            </li>
+          )}
+        </ul>
       </div>
     );
   }

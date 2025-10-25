@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..services.agent_service import AgentRateLimitError, AgentService, get_agent_service
+from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
+from ..services.storage import Storage, get_storage
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -25,9 +27,12 @@ class AgentResponse(BaseModel):
 async def agent_hint(
     request: AgentRequest,
     agent: AgentService = Depends(get_agent_service),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentResponse:
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    ensure_session_owner(storage, request.session_id, user)
     try:
         result = await agent.generate_hint(
             request.session_id,
@@ -50,9 +55,12 @@ async def agent_hint(
 async def agent_explain(
     request: AgentRequest,
     agent: AgentService = Depends(get_agent_service),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentResponse:
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
+    ensure_session_owner(storage, request.session_id, user)
     try:
         result = await agent.generate_explanation(
             request.session_id,

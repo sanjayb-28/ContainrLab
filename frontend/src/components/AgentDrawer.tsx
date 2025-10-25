@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { useLabSession } from "@/components/LabSessionProvider";
 import { requestExplain, requestHint, type AgentResponse } from "@/lib/agent";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type AgentMode = "hint" | "explain";
 
@@ -16,7 +18,6 @@ type AgentHistoryEntry = {
 };
 
 type AgentDrawerProps = {
-  sessionId?: string;
   labSlug?: string;
 };
 
@@ -44,7 +45,9 @@ async function copyToClipboard(text: string | undefined) {
   }
 }
 
-export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
+export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
+  const { token } = useAuth();
+  const { sessionId } = useLabSession();
   const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<AgentHistoryEntry[]>([]);
@@ -65,7 +68,7 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
     });
   }, [sessionId]);
 
-  const disabled = !sessionId || loadingMode !== null;
+  const disabled = !sessionId || !token || loadingMode !== null;
   const latest = history[0];
 
   const statusText = useMemo(() => {
@@ -120,7 +123,8 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
 
   const executeRequest = useCallback(
     async (mode: AgentMode, requestPrompt: string) => {
-      if (!sessionId) {
+      if (!sessionId || !token) {
+        setError("Sign in and start a session to chat with the agent.");
         return;
       }
       const trimmedPrompt = requestPrompt.trim();
@@ -138,13 +142,11 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
       setError(null);
       setOpen(true);
 
-      const init: RequestInit = { signal: controller.signal };
-
       try {
         const response =
           mode === "hint"
-            ? await requestHint(sessionId, trimmedPrompt, labSlug, init)
-            : await requestExplain(sessionId, trimmedPrompt, labSlug, init);
+            ? await requestHint(sessionId, trimmedPrompt, labSlug, token)
+            : await requestExplain(sessionId, trimmedPrompt, labSlug, token);
         handleSuccess(mode, trimmedPrompt, response);
       } catch (err) {
         if (isAbortError(err)) {
@@ -163,7 +165,7 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
         });
       }
     },
-    [handleFailure, handleSuccess, labSlug, loadingMode, sessionId]
+    [handleFailure, handleSuccess, labSlug, loadingMode, sessionId, token]
   );
 
   const handleSend = useCallback(
@@ -201,24 +203,16 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
   }, []);
 
   return (
-    <aside className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <aside className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-slate-100">Agent</h2>
         <button
           type="button"
-          className="text-sm font-semibold text-sky-400 hover:text-sky-300"
+          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
           onClick={() => setOpen((prev) => !prev)}
         >
-          {open ? "Close Agent" : "Open Agent"}
+          {open ? "Hide" : "Show"}
         </button>
-        {history.length > 0 && (
-          <button
-            type="button"
-            className="text-xs text-slate-400 hover:text-slate-200"
-            onClick={() => setHistory([])}
-          >
-            Clear history
-          </button>
-        )}
       </div>
 
       {statusText && (
@@ -232,15 +226,14 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
 
       {open && (
         <div className="space-y-4 text-sm text-slate-200">
-          {!sessionId && (
-            <p className="text-slate-500">Start a session to chat with the agent.</p>
-          )}
+          {!sessionId && <p className="text-slate-500">Start a session to chat with the agent.</p>}
+          {!token && <p className="text-slate-500">Sign in to enable agent assistance.</p>}
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             placeholder="Ask for a hint or explanation..."
             className="h-24 w-full rounded border border-slate-800 bg-slate-950 p-2 text-slate-100 placeholder:text-slate-500"
-            disabled={!sessionId || loadingMode !== null}
+            disabled={disabled}
           />
           <div className="flex gap-3">
             <button
@@ -298,9 +291,7 @@ export default function AgentDrawer({ sessionId, labSlug }: AgentDrawerProps) {
                   {entry.error ? (
                     <p className="text-red-300">{entry.error}</p>
                   ) : (
-                    <p className="whitespace-pre-wrap text-slate-100">
-                      {entry.answer ?? "No response available."}
-                    </p>
+                    <p className="whitespace-pre-wrap text-slate-100">{entry.answer ?? "No response available."}</p>
                   )}
                   <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                     <button

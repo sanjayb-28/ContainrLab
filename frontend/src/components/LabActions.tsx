@@ -1,15 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_BASE } from "@/lib/api";
-import type { SessionDetail } from "@/lib/labs";
+import { apiPost } from "@/lib/api";
+import { fetchSession, type SessionDetail } from "@/lib/labs";
+import { useAuth } from "@/components/AuthProvider";
+import { useLabSession } from "@/components/LabSessionProvider";
 
 type Props = {
   slug: string;
-  initialSession?: SessionDetail | null;
+  initialSessionId?: string | null;
 };
 
 type Message = { kind: "success" | "error"; text: string };
+
+type LoadingState = "start" | "judge" | "history" | "load-more" | null;
 
 function formatDuration(totalSeconds: number | null): string {
   if (totalSeconds === null) {
@@ -22,88 +26,40 @@ function formatDuration(totalSeconds: number | null): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   const parts: string[] = [];
-  if (hours > 0) {
-    parts.push(`${hours}h`);
-  }
-  if (minutes > 0) {
-    parts.push(`${minutes}m`);
-  }
-  if (hours === 0 && seconds > 0) {
-    parts.push(`${seconds}s`);
-  }
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (hours === 0 && seconds > 0) parts.push(`${seconds}s`);
   return parts.join(" ");
 }
 
-async function postJson(path: string, payload: unknown) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload ?? {}),
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    const detail =
-      typeof data?.detail === "string"
-        ? data.detail
-        : typeof data?.message === "string"
-        ? data.message
-        : `Request failed with status ${response.status}`;
-    const error = new Error(detail);
-    (error as any).payload = data;
-    throw error;
-  }
-  return data;
-}
+export default function LabActions({ slug, initialSessionId }: Props) {
+  const { token } = useAuth();
+  const { session, sessionId, setSession, setSessionId } = useLabSession();
 
-async function getJson(path: string) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    const detail =
-      typeof data?.detail === "string"
-        ? data.detail
-        : `Request failed with status ${response.status}`;
-    const error = new Error(detail);
-    (error as any).payload = data;
-    throw error;
-  }
-  return data;
-}
-
-export default function LabActions({ slug, initialSession }: Props) {
-  const [session, setSession] = useState<SessionDetail | null>(
-    initialSession ?? null
-  );
-  const [sessionField, setSessionField] = useState<string>(
-    initialSession?.session_id ?? ""
-  );
+  const [sessionField, setSessionField] = useState<string>(initialSessionId ?? sessionId ?? "");
   const [historyLimit, setHistoryLimit] = useState<number>(5);
-  const [loading, setLoading] = useState<
-    "start" | "judge" | "history" | "load-more" | null
-  >(null);
+  const [loading, setLoading] = useState<LoadingState>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
 
   useEffect(() => {
-    if (initialSession) {
-      setSession(initialSession);
-      setSessionField(initialSession.session_id);
+    if (initialSessionId) {
+      setSessionId(initialSessionId);
+      setSessionField(initialSessionId);
     }
-  }, [initialSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSessionId]);
 
-  const attempts = useMemo(() => session?.attempts ?? [], [session]);
-  const currentSessionId = sessionField || session?.session_id || "";
+  useEffect(() => {
+    setSessionField(sessionId ?? "");
+  }, [sessionId]);
+
+  const currentSessionId = useMemo(() => (sessionField || sessionId || "").trim(), [sessionField, sessionId]);
+
   const expiresAt = session?.expires_at ? new Date(session.expires_at).getTime() : null;
   const endedAt = session?.ended_at ? new Date(session.ended_at).getTime() : null;
-  const sessionExpired =
-    Boolean(endedAt) || (expiresAt !== null && Date.now() >= expiresAt);
-  const ttlWarning =
-    !sessionExpired && remainingSeconds !== null && remainingSeconds <= 300;
+  const sessionExpired = Boolean(endedAt) || (expiresAt !== null && Date.now() >= expiresAt);
+  const ttlWarning = !sessionExpired && remainingSeconds !== null && remainingSeconds <= 300;
 
   useEffect(() => {
     if (!expiresAt || sessionExpired) {
@@ -119,91 +75,76 @@ export default function LabActions({ slug, initialSession }: Props) {
     return () => window.clearInterval(timer);
   }, [expiresAt, sessionExpired]);
 
-  useEffect(() => {
-    if (sessionExpired && session && !session.ended_at) {
-      setSession((prev) =>
-        prev
-          ? {
-              ...prev,
-              ended_at: prev.expires_at,
-            }
-          : prev
-      );
+  const requireToken = useCallback((): string => {
+    if (!token) {
+      const text = "Sign in to manage lab sessions.";
+      setMessage({ kind: "error", text });
+      throw new Error(text);
     }
-  }, [sessionExpired, session]);
+    return token;
+  }, [token]);
 
   const refreshHistory = useCallback(
     async (id: string, limit = historyLimit) => {
-      const trimmed = id.trim();
-      if (!trimmed) {
-        setMessage({ kind: "error", text: "Provide a session ID first." });
-        return null;
-      }
-      const detail = (await getJson(
-        `/sessions/${trimmed}?limit=${limit}`
-      )) as SessionDetail;
+      const authToken = requireToken();
+      const detail = await fetchSession(id, authToken, limit > 0 ? limit : undefined);
       setSession(detail);
-      setSessionField(trimmed);
+      setSessionField(detail.session_id);
+      setSessionId(detail.session_id);
+      setMessage(null);
       return detail;
     },
-    [historyLimit]
+    [historyLimit, requireToken, setSession, setSessionId]
   );
 
   const handleStart = useCallback(async () => {
-    setLoading("start");
-    setMessage(null);
-    setHistoryLimit(5);
     try {
-      const data = await postJson(`/labs/${slug}/start`, {});
-      const detail = (await getJson(
-        `/sessions/${data.session_id}?limit=5`
-      )) as SessionDetail;
+      setLoading("start");
+      setMessage(null);
+      setHistoryLimit(5);
+      const authToken = requireToken();
+      const startResponse = await apiPost<{
+        session_id: string;
+        ttl: number;
+        runner_container: string;
+        expires_at: string;
+      }>(`/labs/${slug}/start`, {}, { token: authToken });
+      const detail = await fetchSession(startResponse.session_id, authToken, 5);
       setSession(detail);
-      setSessionField(data.session_id);
-      setMessage({
-        kind: "success",
-        text: `Session ${data.session_id} started.`,
-      });
+      setSessionField(detail.session_id);
+      setSessionId(detail.session_id);
+      setMessage({ kind: "success", text: `Session ${startResponse.session_id} started.` });
     } catch (error) {
-      const text =
-        error instanceof Error ? error.message : "Failed to start session.";
+      const text = error instanceof Error ? error.message : "Failed to start session.";
       setMessage({ kind: "error", text });
     } finally {
       setLoading(null);
     }
-  }, [slug]);
+  }, [requireToken, setSession, setSessionId, slug]);
 
   const handleJudge = useCallback(async () => {
-    const id = currentSessionId.trim();
+    const id = currentSessionId;
     if (!id) {
       setMessage({ kind: "error", text: "Provide a session ID first." });
       return;
     }
     if (sessionExpired) {
-      setMessage({
-        kind: "error",
-        text: "Session expired. Start a new session before running the judge.",
-      });
+      setMessage({ kind: "error", text: "Session expired. Start a new session first." });
       return;
     }
-    setLoading("judge");
-    setMessage(null);
     try {
-      const result = await postJson(`/labs/${slug}/check`, {
-        session_id: id,
-      });
+      setLoading("judge");
+      setMessage(null);
+      const authToken = requireToken();
+      const result = await apiPost<{ passed: boolean }>(`/labs/${slug}/check`, { session_id: id }, { token: authToken });
       await refreshHistory(id);
       setMessage({
         kind: result.passed ? "success" : "error",
-        text: result.passed
-          ? "Judge passed! 🎉"
-          : "Judge reported failures. Review the hints below.",
+        text: result.passed ? "Judge passed! 🎉" : "Judge reported failures. Review the hints below.",
       });
     } catch (error) {
-      const payload =
-        error && typeof error === "object" ? (error as any).payload : null;
-      let text =
-        error instanceof Error ? error.message : "Judge request failed.";
+      const payload = error && typeof error === "object" ? (error as any).payload : null;
+      let text = error instanceof Error ? error.message : "Judge request failed.";
       if (payload?.detail && typeof payload.detail === "string") {
         text = payload.detail;
       }
@@ -211,22 +152,20 @@ export default function LabActions({ slug, initialSession }: Props) {
     } finally {
       setLoading(null);
     }
-  }, [currentSessionId, refreshHistory, sessionExpired, slug]);
+  }, [currentSessionId, refreshHistory, requireToken, sessionExpired, slug]);
 
   const handleHistoryRefresh = useCallback(async () => {
-    const id = currentSessionId.trim();
+    const id = currentSessionId;
     if (!id) {
       setMessage({ kind: "error", text: "Provide a session ID first." });
       return;
     }
-    setLoading("history");
-    setMessage(null);
     try {
+      setLoading("history");
       await refreshHistory(id, historyLimit);
       setMessage({ kind: "success", text: "History refreshed." });
     } catch (error) {
-      const text =
-        error instanceof Error ? error.message : "Failed to load history.";
+      const text = error instanceof Error ? error.message : "Failed to load history.";
       setMessage({ kind: "error", text });
     } finally {
       setLoading(null);
@@ -234,54 +173,58 @@ export default function LabActions({ slug, initialSession }: Props) {
   }, [currentSessionId, historyLimit, refreshHistory]);
 
   const handleLoadMore = useCallback(async () => {
-    const id = currentSessionId.trim();
+    const id = currentSessionId;
     if (!id) {
       setMessage({ kind: "error", text: "Provide a session ID first." });
       return;
     }
     const nextLimit = historyLimit + 5;
     setHistoryLimit(nextLimit);
-    setLoading("load-more");
     try {
+      setLoading("load-more");
       await refreshHistory(id, nextLimit);
     } catch (error) {
-      const text =
-        error instanceof Error
-          ? error.message
-          : "Failed to load more attempts.";
+      const text = error instanceof Error ? error.message : "Failed to load more attempts.";
       setMessage({ kind: "error", text });
     } finally {
       setLoading(null);
     }
   }, [currentSessionId, historyLimit, refreshHistory]);
 
+  const attempts = useMemo(() => session?.attempts ?? [], [session]);
+
+  const actionsDisabled = !token || loading !== null;
+
+  useEffect(() => {
+    if (token && currentSessionId && !session) {
+      void refreshHistory(currentSessionId, historyLimit).catch((err) => {
+        console.warn("Failed to hydrate session history", err);
+      });
+    }
+  }, [currentSessionId, historyLimit, refreshHistory, session, token]);
+
   return (
     <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-100">
-            Session controls
-          </h2>
+          <h2 className="text-lg font-semibold text-slate-100">Session controls</h2>
           <p className="text-sm text-slate-400">
             Start a fresh workspace, run the judge, or inspect prior attempts.
           </p>
+          {!token && (
+            <p className="text-xs text-amber-200">Sign in above to enable session actions.</p>
+          )}
           {session && (
             <p
               className={`text-xs ${
-                sessionExpired
-                  ? "text-red-300"
-                  : ttlWarning
-                  ? "text-amber-200"
-                  : "text-slate-400"
+                sessionExpired ? "text-red-300" : ttlWarning ? "text-amber-200" : "text-slate-400"
               }`}
             >
               {sessionExpired
-                ? `Session expired at ${new Date(
-                    session.ended_at ?? session.expires_at
-                  ).toLocaleTimeString()}`
-                : `Session expires in ${formatDuration(
-                    remainingSeconds
-                  )} (${new Date(session.expires_at).toLocaleTimeString()})`}
+                ? `Session expired at ${new Date(session.ended_at ?? session.expires_at).toLocaleTimeString()}`
+                : `Session expires in ${formatDuration(remainingSeconds)} (${new Date(
+                    session.expires_at
+                  ).toLocaleTimeString()})`}
             </p>
           )}
         </div>
@@ -289,7 +232,7 @@ export default function LabActions({ slug, initialSession }: Props) {
           <button
             type="button"
             onClick={handleStart}
-            disabled={loading === "start"}
+            disabled={actionsDisabled}
             className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading === "start" ? "Starting..." : "Start session"}
@@ -297,7 +240,7 @@ export default function LabActions({ slug, initialSession }: Props) {
           <button
             type="button"
             onClick={handleJudge}
-            disabled={loading === "judge" || sessionExpired}
+            disabled={!token || loading === "judge" || sessionExpired || !currentSessionId}
             className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading === "judge" ? "Checking..." : "Run judge"}
@@ -305,7 +248,7 @@ export default function LabActions({ slug, initialSession }: Props) {
           <button
             type="button"
             onClick={handleHistoryRefresh}
-            disabled={loading === "history"}
+            disabled={!token || loading === "history" || !currentSessionId}
             className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading === "history" ? "Refreshing..." : "Refresh history"}
@@ -313,7 +256,7 @@ export default function LabActions({ slug, initialSession }: Props) {
           <button
             type="button"
             onClick={handleLoadMore}
-            disabled={loading === "load-more"}
+            disabled={!token || loading === "load-more" || !currentSessionId}
             className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading === "load-more" ? "Loading..." : "Load more"}
@@ -329,11 +272,12 @@ export default function LabActions({ slug, initialSession }: Props) {
             onChange={(event) => setSessionField(event.target.value)}
             placeholder="Paste an existing session ID"
             className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+            disabled={loading === "history" || loading === "load-more"}
           />
         </label>
         <p className="mt-2 text-xs text-slate-500">
-          After running the judge or starting a new session you can refresh or load
-          more attempts using this identifier.
+          After running the judge or starting a new session you can refresh or load more attempts using this
+          identifier.
         </p>
       </div>
 
@@ -359,100 +303,69 @@ export default function LabActions({ slug, initialSession }: Props) {
             </div>
             <div>
               <span className="text-slate-500">Runner container:</span>{" "}
-              <code className="break-all text-slate-200">
-                {session.runner_container}
-              </code>
+              <code className="break-all text-slate-200">{session.runner_container}</code>
             </div>
             <div className="flex flex-wrap gap-4 text-slate-400">
               <span>Lab: {session.lab_slug}</span>
-              <span>
-                TTL: {Math.round(session.ttl_seconds / 60)}m
-              </span>
-              <span>
-                Created: {new Date(session.created_at).toLocaleString()}
-              </span>
+              <span>TTL: {Math.round(session.ttl_seconds / 60)}m</span>
+              <span>Created: {new Date(session.created_at).toLocaleString()}</span>
             </div>
           </div>
         ) : (
           <p className="text-sm text-slate-500">
-            No session yet. Start one or paste an existing session ID to view
-            details and history.
+            No session yet. Start one or paste an existing session ID to view details and history.
           </p>
         )}
       </div>
 
       <section className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-100">
-            Recent judge attempts
-          </h3>
-          <span className="text-xs text-slate-500">
-            Showing up to {historyLimit} entries
-          </span>
+          <h3 className="text-base font-semibold text-slate-100">Recent judge attempts</h3>
+          <span className="text-xs text-slate-500">Showing up to {historyLimit} entries</span>
         </div>
         {attempts.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            No attempts yet. Run the judge to populate this section.
-          </p>
+          <p className="text-sm text-slate-500">No attempts yet. Run the judge to populate this section.</p>
         ) : (
           <ul className="space-y-3 text-sm">
             {attempts.map((attempt) => (
-              <li
-                key={attempt.id}
-                className="rounded-lg border border-slate-800 bg-slate-900/70 p-4"
-              >
+              <li key={attempt.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-medium text-slate-100">
-                    Attempt #{attempt.id}
-                  </span>
+                  <span className="font-medium text-slate-100">Attempt #{attempt.id}</span>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      attempt.passed
-                        ? "bg-emerald-500/20 text-emerald-300"
-                        : "bg-red-500/20 text-red-200"
+                      attempt.passed ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-200"
                     }`}
                   >
                     {attempt.passed ? "Passed" : "Failed"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  {new Date(attempt.created_at).toLocaleString()}
-                </p>
+                <p className="text-xs text-slate-400">{new Date(attempt.created_at).toLocaleString()}</p>
                 {attempt.failures.length > 0 && (
                   <ul className="mt-3 space-y-2 text-sm text-red-200">
                     {attempt.failures.map((failure, idx) => (
                       <li key={`${failure.code}-${idx}`}>
                         <p className="font-medium">{failure.message}</p>
-                        {failure.hint && (
-                          <p className="text-xs text-red-100/80">
-                            Hint: {failure.hint}
-                          </p>
-                        )}
+                        {failure.hint && <p className="text-xs text-red-100/80">Hint: {failure.hint}</p>}
                       </li>
                     ))}
                   </ul>
                 )}
                 {Object.keys(attempt.metrics || {}).length > 0 && (
                   <div className="mt-3 text-xs text-slate-400">
-                    <p className="font-semibold uppercase tracking-wide text-slate-300">
-                      Metrics
-                    </p>
+                    <p className="font-semibold uppercase tracking-wide text-slate-300">Metrics</p>
                     <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950/80 p-3 text-xs text-slate-200">
                       {JSON.stringify(attempt.metrics, null, 2)}
                     </pre>
                   </div>
                 )}
-                {attempt.notes &&
-                  Object.keys(attempt.notes).length > 0 && (
-                    <div className="mt-3 text-xs text-slate-400">
-                      <p className="font-semibold uppercase tracking-wide text-slate-300">
-                        Notes
-                      </p>
-                      <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950/80 p-3 text-xs text-slate-200">
-                        {JSON.stringify(attempt.notes, null, 2)}
-                      </pre>
-                    </div>
-                  )}
+                {attempt.notes && Object.keys(attempt.notes).length > 0 && (
+                  <div className="mt-3 text-xs text-slate-400">
+                    <p className="font-semibold uppercase tracking-wide text-slate-300">Notes</p>
+                    <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950/80 p-3 text-xs text-slate-200">
+                      {JSON.stringify(attempt.notes, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

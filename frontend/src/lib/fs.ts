@@ -15,12 +15,12 @@ export type ListResponse = {
   is_dir: boolean;
 };
 
-export async function listPath(sessionId: string, path?: string): Promise<ListResponse> {
+export async function listPath(sessionId: string, path?: string, token?: string): Promise<ListResponse> {
   const params = new URLSearchParams();
   if (path) {
     params.set("path", path);
   }
-  return apiGet(`/fs/${sessionId}/list?${params.toString()}`);
+  return apiGet(`/fs/${sessionId}/list?${params.toString()}`, { token });
 }
 
 export type ReadResponse = {
@@ -29,28 +29,30 @@ export type ReadResponse = {
   content: string;
 };
 
-export async function readFile(sessionId: string, path: string): Promise<ReadResponse> {
-  return apiGet(`/fs/${sessionId}/read?path=${encodeURIComponent(path)}`);
+export async function readFile(sessionId: string, path: string, token?: string): Promise<ReadResponse> {
+  return apiGet(`/fs/${sessionId}/read?path=${encodeURIComponent(path)}`, { token });
 }
 
 export async function writeFile(
   sessionId: string,
   path: string,
-  contentBase64: string
+  contentBase64: string,
+  token?: string
 ): Promise<void> {
   await apiPost(`/fs/write`, {
     session_id: sessionId,
     path,
     content: contentBase64,
     encoding: "base64",
-  });
+  }, { token });
 }
 
 export async function createEntry(
   sessionId: string,
   path: string,
   kind: "file" | "directory",
-  contentBase64?: string
+  contentBase64?: string,
+  token?: string
 ): Promise<void> {
   await apiPost(`/fs/create`, {
     session_id: sessionId,
@@ -58,26 +60,27 @@ export async function createEntry(
     kind,
     content: kind === "file" ? contentBase64 ?? "" : undefined,
     encoding: "base64",
-  });
+  }, { token });
 }
 
 export async function renameEntry(
   sessionId: string,
   path: string,
-  newPath: string
+  newPath: string,
+  token?: string
 ): Promise<void> {
   await apiPost(`/fs/rename`, {
     session_id: sessionId,
     path,
     new_path: newPath,
-  });
+  }, { token });
 }
 
-export async function deleteEntry(sessionId: string, path: string): Promise<void> {
+export async function deleteEntry(sessionId: string, path: string, token?: string): Promise<void> {
   await apiPost(`/fs/delete`, {
     session_id: sessionId,
     path,
-  });
+  }, { token });
 }
 
 export function encodeToBase64(text: string): string {

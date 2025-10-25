@@ -7,7 +7,9 @@ from typing import Any, Dict, List, Literal
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
+from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
 from ..services.runner_client import RunnerClient, get_runner_client
+from ..services.storage import Storage, get_storage
 
 router = APIRouter(prefix="/fs", tags=["filesystem"])
 
@@ -86,7 +88,10 @@ async def list_path(
     session_id: str,
     path: str | None = None,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> ListResponse:
+    ensure_session_owner(storage, session_id, user)
     payload = await runner.list_path(session_id=session_id, path=path)
     entries = [
         ListResponseEntry(
@@ -111,7 +116,10 @@ async def read_file(
     session_id: str,
     path: str,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> ReadResponse:
+    ensure_session_owner(storage, session_id, user)
     payload = await runner.read_file(session_id=session_id, path=path)
     return ReadResponse(**payload)
 
@@ -120,7 +128,10 @@ async def read_file(
 async def write_file(
     request: WriteRequest,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> WriteResponse:
+    ensure_session_owner(storage, request.session_id, user)
     if request.encoding != "base64":
         raise HTTPException(status_code=400, detail="Only base64 encoding is supported")
     try:
@@ -139,7 +150,10 @@ async def write_file(
 async def create_entry(
     request: CreateRequest,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> CreateResponse:
+    ensure_session_owner(storage, request.session_id, user)
     if request.kind == "file":
         if request.encoding != "base64":
             raise HTTPException(status_code=400, detail="Only base64 encoding is supported")
@@ -160,7 +174,10 @@ async def create_entry(
 async def rename_entry(
     request: RenameRequest,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> RenameResponse:
+    ensure_session_owner(storage, request.session_id, user)
     payload = await runner.rename_entry(
         session_id=request.session_id,
         path=request.path,
@@ -173,6 +190,9 @@ async def rename_entry(
 async def delete_entry(
     request: DeleteRequest,
     runner: RunnerClient = Depends(get_runner_client),
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
 ) -> DeleteResponse:
+    ensure_session_owner(storage, request.session_id, user)
     payload = await runner.delete_entry(session_id=request.session_id, path=request.path)
     return DeleteResponse(**payload)
