@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { fetchLabs, type LabSummary } from "@/lib/labs";
-import { API_BASE } from "@/lib/api";
+import { DISPLAY_API_BASE } from "@/lib/api";
 
 export default async function Home() {
   let labs: LabSummary[] = [];
@@ -20,7 +20,7 @@ export default async function Home() {
       <section>
         <h2 className="text-xl font-semibold text-slate-100">Labs</h2>
         <p className="text-sm text-slate-400">
-          API: <code className="text-slate-300">{API_BASE}</code>
+          API: <code className="text-slate-300">{DISPLAY_API_BASE}</code>
         </p>
       </section>
 

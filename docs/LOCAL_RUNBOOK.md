@@ -101,6 +101,9 @@ The script exits with a non-zero status if any step fails, making it safe to int
 | --- | --- | --- |
 | `401 Unauthorized` from API | Missing/expired bearer token | Re-login or export the token via `curl`. |
 | Agent requests always return stub responses | Missing `GEMINI_API_KEY` | Follow [`docs/GEMINI_SETUP.md`](./GEMINI_SETUP.md). |
+| Labs page reports “Unable to reach the ContainrLab API” or logs JSON parse errors | `NEXT_PUBLIC_API_BASE` pointing at a non-local host or the API container is down | Ensure the API container is healthy and rebuild the stack; override `NEXT_PUBLIC_API_BASE` if you need a different host. |
+| Browser console shows `CORS error` for `/auth/login` | Compose stack missing updated API image with CORS support | Rebuild the API container (`docker compose build api && docker compose up`) or set `CORS_ALLOW_ORIGINS` to include your frontend origin. |
+| `Failed to persist user ... token_hash` during login | Old SQLite schema missing new auth columns | Rebuild/restart the API container so it applies the automatic column backfill; if the error persists, remove `sqlite/app.db` (it will be recreated on startup). |
 | Docker builds fail inside runner | Outdated lab solution or missing dependencies | Apply the agent patch or edit the Dockerfile manually, then rerun the judge. |
 | `docker compose up` hangs on runnerd | Host Docker daemon not sharing `/var/run/docker.sock` | Ensure Docker Desktop is running and restart the compose stack. |
 

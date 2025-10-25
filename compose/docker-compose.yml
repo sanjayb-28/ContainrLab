@@ -3,7 +3,8 @@ services:
     build:
       context: ../frontend
     environment:
-      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-https://app.yourdomain.com}
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+      API_INTERNAL_BASE: ${API_INTERNAL_BASE:-http://api:8000}
     ports:
       - "3000:3000"  # expose locally while nginx is not fronting the stack
     depends_on:

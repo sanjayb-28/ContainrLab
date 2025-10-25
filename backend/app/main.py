@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx  # type: ignore[import]
 from fastapi import FastAPI, HTTPException  # type: ignore[import]
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 
 from .routers import agent, auth, files, labs, sessions, terminal
 from .services.storage import get_storage
@@ -17,6 +18,14 @@ RUNNERD_BASE_URL = os.getenv("RUNNERD_BASE_URL", "http://runnerd:8080")
 SESSION_CLEANUP_INTERVAL_SECONDS = float(os.getenv("SESSION_CLEANUP_INTERVAL_SECONDS", "60"))
 SESSION_TTL_GRACE_SECONDS = int(os.getenv("SESSION_TTL_GRACE_SECONDS", "120"))
 
+DEFAULT_CORS_ORIGINS = {"http://localhost:3000", "http://127.0.0.1:3000"}
+extra_origins = {
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", "").split(",")
+    if origin.strip()
+}
+ALLOW_ORIGINS = sorted(DEFAULT_CORS_ORIGINS | extra_origins)
+
 logger = logging.getLogger("containrlab.session_cleanup")
 _cleanup_task: asyncio.Task[None] | None = None
 
@@ -26,6 +35,14 @@ app.include_router(files.router)
 app.include_router(terminal.router)
 app.include_router(agent.router)
 app.include_router(auth.router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOW_ORIGINS or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/healthz")
