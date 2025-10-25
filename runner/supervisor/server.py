@@ -369,7 +369,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                     if msg_type == "input":
                         data = payload.get("data", "")
                         if isinstance(data, str) and data:
-                            await loop.run_in_executor(None, raw_sock.send, data.encode("utf-8"))
+                            await loop.run_in_executor(None, raw_sock.sendall, data.encode("utf-8"))
                     elif msg_type == "resize":
                         cols = payload.get("cols")
                         rows = payload.get("rows")

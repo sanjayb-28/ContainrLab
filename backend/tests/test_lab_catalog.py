@@ -12,16 +12,17 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.app.services.lab_catalog import LabCatalog  # type: ignore[import]
 
 
-def _write_lab(root: Path, slug: str, title: str, summary: str) -> None:
+def _write_lab(root: Path, slug: str, title: str, summary: str, *, use_readme: bool = False) -> None:
     lab_dir = root / slug
     (lab_dir / "starter").mkdir(parents=True, exist_ok=True)
-    readme = lab_dir / "README.md"
-    readme.write_text(f"# {title}\n\n{summary}\n\nMore instructions.\n", encoding="utf-8")
+    doc_name = "README.md" if use_readme else "description.md"
+    doc = lab_dir / doc_name
+    doc.write_text(f"# {title}\n\n{summary}\n\nMore instructions.\n", encoding="utf-8")
 
 
 def test_lab_catalog_lists_and_gets(tmp_path: Path) -> None:
     _write_lab(tmp_path, "lab1", "Lab One", "First lab summary")
-    _write_lab(tmp_path, "lab2", "Lab Two", "Second lab summary")
+    _write_lab(tmp_path, "lab2", "Lab Two", "Second lab summary", use_readme=True)
 
     catalog = LabCatalog(root=tmp_path)
     labs = catalog.list()
@@ -32,8 +33,9 @@ def test_lab_catalog_lists_and_gets(tmp_path: Path) -> None:
     assert labs[0].has_starter is True
 
     detail = catalog.get("lab1")
-    assert detail.readme.startswith("# Lab One")
-    assert "More instructions." in detail.readme
+    assert detail.description.startswith("# Lab One")
+    assert "More instructions." in detail.description
+    assert detail.solution is None
 
 
 def test_lab_catalog_missing_lab(tmp_path: Path) -> None:
