@@ -340,7 +340,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                 while not stop_event.is_set():
                     data = await loop.run_in_executor(None, raw_sock.recv, 4096)
                     if not data:
-                        print("runner sock closed", session_id)
+                        logger.debug("terminal socket closed session=%s", session_id)
                         break
                     await websocket.send_text(data.decode("utf-8", errors="ignore"))
             except Exception as exc:
@@ -365,7 +365,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         payload = {"type": "input", "data": message}
 
                     msg_type = payload.get("type")
-                    print("runner inbound", session_id, msg_type, payload)
+                    logger.debug("terminal inbound session=%s type=%s", session_id, msg_type)
                     if msg_type == "input":
                         data = payload.get("data", "")
                         if isinstance(data, str) and data:
@@ -375,7 +375,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         rows = payload.get("rows")
                         if isinstance(cols, int) and isinstance(rows, int):
                             try:
-                                print("runner resize", session_id, cols, rows)
+                                logger.debug("terminal resize session=%s cols=%s rows=%s", session_id, cols, rows)
                                 container.client.api.exec_resize(  # type: ignore[attr-defined]
                                     exec_id,
                                     width=cols,
