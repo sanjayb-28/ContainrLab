@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from collections import defaultdict, deque
+import json
 from dataclasses import dataclass
 from typing import Any, Callable, Deque, Dict, Optional
 
@@ -26,6 +27,17 @@ FALLBACK_HINT = "Remember to install dependencies before building."
 FALLBACK_EXPLANATION = (
     "Docker builds each instruction in order. Combine related commands to reduce layers and cache invalidations."
 )
+FALLBACK_PATCH = {
+    "message": "Consider updating your Dockerfile to install dependencies before copying the application source. "
+    "Below is an example you can adapt.",
+    "files": [
+        {
+            "path": "/workspace/Dockerfile",
+            "description": "Reorder COPY/RUN instructions for better caching.",
+            "content": "# Example patch — adjust as needed\nFROM python:3.11-slim\n\nWORKDIR /app\n\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\nCOPY . .\n\nCMD [\"python\", \"app.py\"]\n",
+        }
+    ],
+}
 
 HINT_TEMPLATE = (
     "You are ContainrLab's Docker tutor helping a learner who is working on the lab '{lab_slug}'. "
@@ -41,6 +53,27 @@ EXPLAIN_TEMPLATE = (
     "Learner request:\n{prompt}"
 )
 
+PATCH_TEMPLATE = (
+    "You are ContainrLab's Docker assistant. The learner is working on lab '{lab_slug}' and has asked for a patch.\n"
+    "Review the prompt and return ONLY a JSON object (no Markdown, no prose outside JSON) with the following shape:\n\n"
+    "{\n"
+    '  "message": "<short summary of the changes>",\n'
+    '  "files": [\n'
+    "    {\n"
+    '      "path": "/workspace/relative/path.ext",\n'
+    '      "description": "Optional short note about this change",\n'
+    '      "content": "The full desired file contents after applying the patch"\n'
+    "    }\n"
+    "  ]\n"
+    "}\n\n"
+    "Rules:\n"
+    "- Output must be valid JSON that can be parsed directly.\n"
+    "- Always include absolute paths rooted at /workspace.\n"
+    "- Provide the full file content for each file listed.\n"
+    "- If no concrete patch is appropriate, return an empty array for `files` and explain why in `message`.\n\n"
+    "Learner prompt:\n{prompt}"
+)
+
 
 class AgentServiceError(RuntimeError):
     """Raised when the Gemini service cannot fulfil a request."""
@@ -53,6 +86,20 @@ class AgentRateLimitError(AgentServiceError):
 @dataclass(slots=True)
 class AgentResult:
     answer: str
+    source: str
+
+
+@dataclass(slots=True)
+class PatchFileSpec:
+    path: str
+    content: str
+    description: str | None = None
+
+
+@dataclass(slots=True)
+class AgentPatchResult:
+    message: str
+    files: list[PatchFileSpec]
     source: str
 
 
@@ -145,6 +192,85 @@ class AgentService:
             template=EXPLAIN_TEMPLATE,
             fallback=FALLBACK_EXPLANATION,
         )
+
+    async def generate_patch(self, session_id: str, prompt: str, *, lab_slug: str | None = None) -> AgentPatchResult:
+        cleaned_prompt = prompt.strip()
+        if not cleaned_prompt:
+            raise ValueError("Prompt cannot be empty")
+
+        slug = lab_slug or "general"
+        metadata = {
+            "mode": "patch",
+            "session_id": session_id,
+            "lab_slug": slug,
+            "prompt_chars": len(cleaned_prompt),
+            "enabled": self._enabled,
+        }
+
+        if not self._enabled:
+            _log(logging.INFO, "Gemini disabled; returning stub patch response", metadata, event="stub_fallback", source="stub")
+            return self._fallback_patch()
+
+        allowed = await self._rate_limiter.allow(session_id)
+        if not allowed:
+            _log(logging.INFO, "Gemini rate limit hit", metadata, event="rate_limit")
+            raise AgentRateLimitError("Too many agent requests. Please try again shortly.")
+
+        request_body = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": PATCH_TEMPLATE.format(lab_slug=slug, prompt=cleaned_prompt)}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": min(self._temperature, 0.5),
+                "maxOutputTokens": min(self._max_output_tokens, 1024),
+                "topP": 0.9,
+            },
+        }
+
+        start_time = time.perf_counter()
+        failure_reason: str | None = None
+
+        try:
+            _log(logging.INFO, "Gemini patch request dispatched", metadata, event="request_start")
+            response_data = await self._invoke(request_body)
+            answer = self._extract_text(response_data)
+            if not answer:
+                raise AgentServiceError("Gemini response did not include text content")
+
+            patch = self._parse_patch_payload(answer)
+            duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            _log(
+                logging.INFO,
+                "Gemini patch response received",
+                metadata,
+                event="response",
+                source="gemini",
+                duration_ms=duration_ms,
+                files=len(patch.files),
+            )
+            return AgentPatchResult(message=patch.message, files=patch.files, source="gemini")
+        except (AgentServiceError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            failure_reason = str(exc)
+            _log(logging.WARNING, "Gemini patch error", metadata, event="patch_error", error=failure_reason)
+        except httpx.HTTPError as exc:
+            failure_reason = str(exc)
+            _log(logging.WARNING, "Gemini patch HTTP failure", metadata, event="patch_http_error", error=failure_reason)
+        except Exception as exc:  # pragma: no cover - defensive
+            failure_reason = str(exc)
+            logger.exception("Unexpected Gemini patch failure", extra={**metadata, "event": "patch_unexpected"})
+
+        _log(
+            logging.INFO,
+            "Using fallback patch response",
+            metadata,
+            event="patch_fallback",
+            source="fallback",
+            fallback_reason=failure_reason or "unknown",
+        )
+        return self._fallback_patch()
 
     async def _generate(
         self,
@@ -269,6 +395,58 @@ class AgentService:
                     if isinstance(text, str) and text.strip():
                         return text.strip()
         return None
+
+    @staticmethod
+    def _clean_json_blob(raw: str) -> str:
+        text = raw.strip()
+        if text.startswith("```"):
+            segments = text.split("```")
+            for segment in segments:
+                segment = segment.strip()
+                if not segment:
+                    continue
+                if segment.startswith("json"):
+                    segment = segment[len("json"):].strip()
+                return segment
+        return text
+
+    def _parse_patch_payload(self, raw: str) -> AgentPatchResult:
+        cleaned = self._clean_json_blob(raw)
+        data = json.loads(cleaned)
+        message = data.get("message") or "Patch suggestion"
+        files_payload = data.get("files") or []
+        if not isinstance(files_payload, list):
+            raise AgentServiceError("Patch payload 'files' must be a list")
+        files: list[PatchFileSpec] = []
+        for entry in files_payload:
+            if not isinstance(entry, dict):
+                continue
+            path = entry.get("path")
+            content = entry.get("content")
+            if not isinstance(path, str) or not isinstance(content, str):
+                continue
+            description = entry.get("description")
+            if description is not None and not isinstance(description, str):
+                description = str(description)
+            files.append(PatchFileSpec(path=path, content=content, description=description))
+        return AgentPatchResult(message=str(message), files=files, source="gemini")
+
+    @staticmethod
+    def _fallback_patch() -> AgentPatchResult:
+        files = [
+            PatchFileSpec(
+                path=file["path"],
+                content=file["content"],
+                description=file.get("description"),
+            )
+            for file in FALLBACK_PATCH.get("files", [])
+            if isinstance(file, dict) and isinstance(file.get("path"), str) and isinstance(file.get("content"), str)
+        ]
+        return AgentPatchResult(
+            message=str(FALLBACK_PATCH.get("message", "Review the Dockerfile for best practices.")),
+            files=files,
+            source="fallback",
+        )
 
 
 def get_agent_service() -> AgentService:
