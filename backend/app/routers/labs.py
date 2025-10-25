@@ -34,7 +34,8 @@ class LabListItem(BaseModel):
 
 
 class LabDetailResponse(LabListItem):
-    readme: str
+    description: str
+    solution: str | None = None
 
 
 class LabCheckRequest(BaseModel):
@@ -118,7 +119,8 @@ async def get_lab(lab_slug: str, catalog: LabCatalog = Depends(get_lab_catalog))
         title=lab.title,
         summary=lab.summary,
         has_starter=lab.has_starter,
-        readme=lab.readme,
+        description=lab.description,
+        solution=lab.solution,
     )
 
 

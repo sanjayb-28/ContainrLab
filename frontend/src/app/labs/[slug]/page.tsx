@@ -45,27 +45,12 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
           </Link>
         </nav>
 
-        <header className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-          <h1 className="text-2xl font-semibold text-slate-100">
-            {lab.title || lab.slug}
-          </h1>
-          {lab.summary ? (
-            <p className="text-slate-300">{lab.summary}</p>
-          ) : (
-            <p className="text-slate-500">No summary yet.</p>
-          )}
-          <div className="flex flex-wrap gap-4 text-xs text-slate-400">
-            <span>
-              Slug: <code>{lab.slug}</code>
-            </span>
-            <span>
-              Starter:{" "}
-              <span className="font-medium">
-                {lab.has_starter ? "Available" : "Missing"}
-              </span>
-            </span>
-          </div>
-        </header>
+        <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+          <h2 className="text-lg font-semibold text-slate-100">Description</h2>
+          <Suspense fallback={<p className="text-sm text-slate-500">Loading description…</p>}>
+            <Markdown content={lab.description} />
+          </Suspense>
+        </section>
 
         <LabActions slug={params.slug} initialSessionId={sessionId} />
         <WorkspacePane />
@@ -81,12 +66,14 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
           <Terminal className="mt-4" />
         </div>
 
-        <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-slate-100">README</h2>
-          <Suspense fallback={<p className="text-sm text-slate-500">Loading...</p>}>
-            <Markdown content={lab.readme} />
-          </Suspense>
-        </section>
+        {lab.solution ? (
+          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 className="text-lg font-semibold text-slate-100">Solution</h2>
+            <Suspense fallback={<p className="text-sm text-slate-500">Loading solution…</p>}>
+              <Markdown content={lab.solution} />
+            </Suspense>
+          </section>
+        ) : null}
       </div>
     </LabSessionProvider>
   );

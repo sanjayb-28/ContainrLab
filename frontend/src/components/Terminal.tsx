@@ -24,9 +24,18 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "closed">("idle");
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manualCloseRef = useRef(false);
+  const [reconnectTick, setReconnectTick] = useState(0);
 
   useEffect(() => {
+    if (reconnectRef.current) {
+      clearTimeout(reconnectRef.current);
+      reconnectRef.current = null;
+    }
+
     if (!containerRef.current || !sessionId || !token) {
+      setStatus(sessionId && token ? "closed" : "idle");
       return;
     }
 
@@ -62,6 +71,7 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
     }
     const socket = new WebSocket(wsUrl);
     wsRef.current = socket;
+    manualCloseRef.current = false;
 
     setStatus("connecting");
 
@@ -78,10 +88,20 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
 
     socket.addEventListener("close", () => {
       setStatus("closed");
+      if (!manualCloseRef.current && sessionId && token) {
+        reconnectRef.current = setTimeout(() => {
+          setReconnectTick((tick) => tick + 1);
+        }, 750);
+      }
     });
 
     socket.addEventListener("error", () => {
       setStatus("closed");
+      if (!manualCloseRef.current && sessionId && token) {
+        reconnectRef.current = setTimeout(() => {
+          setReconnectTick((tick) => tick + 1);
+        }, 750);
+      }
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -91,14 +111,19 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      manualCloseRef.current = true;
       resizeObserver.disconnect();
+      if (reconnectRef.current) {
+        clearTimeout(reconnectRef.current);
+        reconnectRef.current = null;
+      }
       socket.close();
       term.dispose();
       termRef.current = null;
       wsRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, shell, token]);
+  }, [sessionId, shell, token, reconnectTick]);
 
   const statusMessage = !sessionId
     ? "Start a session to open a terminal."

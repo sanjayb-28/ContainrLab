@@ -8,7 +8,8 @@ export type LabSummary = {
 };
 
 export type LabDetail = LabSummary & {
-  readme: string;
+  description: string;
+  solution?: string | null;
 };
 
 export type SessionAttempt = {

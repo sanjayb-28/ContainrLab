@@ -11,7 +11,7 @@ type MarkdownProps = {
 
 export default function Markdown({ content }: MarkdownProps) {
   return (
-    <div className="prose prose-invert max-w-none">
+    <div className="prose prose-invert max-w-none prose-headings:mt-0 prose-h1:mb-4">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}

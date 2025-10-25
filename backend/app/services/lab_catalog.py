@@ -23,7 +23,8 @@ class LabMetadata:
 
 @dataclass(slots=True)
 class LabDetail(LabMetadata):
-    readme: str
+    description: str
+    solution: str | None
 
 
 class LabCatalog:
@@ -42,7 +43,7 @@ class LabCatalog:
             try:
                 labs.append(self._load_metadata(entry))
             except FileNotFoundError:
-                # Skip directories without the expected README
+                # Skip directories without the expected lab description
                 continue
         return labs
 
@@ -51,18 +52,22 @@ class LabCatalog:
         if not lab_dir.is_dir():
             raise FileNotFoundError(f"Lab '{slug}' not found")
         metadata = self._load_metadata(lab_dir)
-        readme = _read_file(lab_dir / "README.md")
+        description_path = _resolve_lab_doc(lab_dir)
+        description = _read_file(description_path)
+        solution_path = lab_dir / "solution.md"
+        solution = _read_file(solution_path) if solution_path.is_file() else None
         return LabDetail(
             slug=metadata.slug,
             title=metadata.title,
             summary=metadata.summary,
             has_starter=metadata.has_starter,
-            readme=readme,
+            description=description,
+            solution=solution,
         )
 
     def _load_metadata(self, lab_dir: Path) -> LabMetadata:
-        readme_path = lab_dir / "README.md"
-        title, summary = _parse_readme(readme_path)
+        doc_path = _resolve_lab_doc(lab_dir)
+        title, summary = _parse_lab_doc(doc_path)
         starter_dir = lab_dir / "starter"
         return LabMetadata(
             slug=lab_dir.name,
@@ -77,7 +82,15 @@ def get_lab_catalog() -> LabCatalog:
     return LabCatalog()
 
 
-def _parse_readme(path: Path) -> tuple[str | None, str | None]:
+def _resolve_lab_doc(lab_dir: Path) -> Path:
+    for candidate in ("description.md", "README.md"):
+        doc_path = lab_dir / candidate
+        if doc_path.is_file():
+            return doc_path
+    raise FileNotFoundError(f"Expected description.md or README.md in '{lab_dir}'")
+
+
+def _parse_lab_doc(path: Path) -> tuple[str | None, str | None]:
     content = _read_file(path)
     lines = [line.strip() for line in content.splitlines() if line.strip()]
     title: str | None = None

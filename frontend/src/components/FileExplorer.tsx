@@ -198,13 +198,42 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
       [entriesByPath, fetchEntries]
     );
 
+    const promptForName = useCallback(
+      (kind: EntryKind): string | null => {
+        if (typeof window === "undefined") {
+          return null;
+        }
+        const noun = kind === "file" ? "file" : "folder";
+        const suggestion = kind === "file" ? "app.py" : "new-folder";
+        const response = window.prompt(`Enter a name for the new ${noun}`, suggestion);
+        if (response == null) {
+          return null;
+        }
+        const trimmed = response.trim();
+        if (!trimmed) {
+          setError(`A ${noun} name is required.`);
+          return null;
+        }
+        if (trimmed.includes("..")) {
+          setError("Parent directory references ('..') are not allowed.");
+          return null;
+        }
+        return trimmed.replace(/^[\\/]+/, "");
+      },
+      []
+    );
+
     const handleCreate = useCallback(
       async (kind: EntryKind, directory: string) => {
         if (!sessionId || !token) {
           setError("Sign in and start a session before creating files.");
           return;
         }
-        const normalized = kind === "file" ? joinPath(directory, "new-file.txt") : joinPath(directory, "new-directory");
+        const name = promptForName(kind);
+        if (!name) {
+          return;
+        }
+        const normalized = joinPath(directory, name);
         try {
           if (kind === "file") {
             await createEntry(sessionId, normalized, "file", "", token);
@@ -219,7 +248,7 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
           setError(message);
         }
       },
-      [fetchEntries, onEntryCreated, removeEntryTree, sessionId, token]
+      [fetchEntries, onEntryCreated, promptForName, removeEntryTree, sessionId, token]
     );
 
     const handleRename = useCallback(
