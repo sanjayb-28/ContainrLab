@@ -88,6 +88,14 @@ class Storage:
                 self._connection.executescript(schema)
                 self._ensure_column("users", "token_hash", "ALTER TABLE users ADD COLUMN token_hash TEXT")
                 self._ensure_column("users", "last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TEXT")
+                self._ensure_column("users", "provider", "ALTER TABLE users ADD COLUMN provider TEXT")
+                self._ensure_column(
+                    "users",
+                    "provider_account_id",
+                    "ALTER TABLE users ADD COLUMN provider_account_id TEXT",
+                )
+                self._ensure_column("users", "name", "ALTER TABLE users ADD COLUMN name TEXT")
+                self._ensure_column("users", "avatar_url", "ALTER TABLE users ADD COLUMN avatar_url TEXT")
                 self._ensure_column("sessions", "user_id", "ALTER TABLE sessions ADD COLUMN user_id TEXT")
                 self._ensure_column("sessions", "expires_at", "ALTER TABLE sessions ADD COLUMN expires_at TEXT")
                 self._ensure_column("sessions", "ended_at", "ALTER TABLE sessions ADD COLUMN ended_at TEXT")
@@ -108,6 +116,18 @@ class Storage:
                     """
                     UPDATE users
                     SET last_login_at = COALESCE(last_login_at, created_at)
+                    """
+                )
+                self._connection.execute(
+                    """
+                    UPDATE users
+                    SET provider = COALESCE(provider, 'magic_link')
+                    """
+                )
+                self._connection.execute(
+                    """
+                    UPDATE users
+                    SET provider_account_id = COALESCE(provider_account_id, '')
                     """
                 )
                 self._connection.commit()
@@ -170,23 +190,63 @@ class Storage:
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to persist attempt for session '{session_id}': {exc}") from exc
 
-    def upsert_user_token(self, email: str, token_hash: str) -> Dict[str, Any]:
+    def upsert_user_token(
+        self,
+        email: str,
+        token_hash: str,
+        *,
+        provider: str | None = None,
+        provider_account_id: str | None = None,
+        name: str | None = None,
+        avatar_url: str | None = None,
+    ) -> Dict[str, Any]:
+        normalized_email = email.strip().lower()
         now = _utc_now()
+        provider_value = (provider or "magic_link").lower()
         if not self._user_columns:
             with self._lock:
                 self._user_columns = self._get_columns("users")
         try:
             with self._lock:
-                cursor = self._connection.execute(
-                    "SELECT user_id, created_at FROM users WHERE email = ?",
-                    (email.lower(),),
-                )
-                row = cursor.fetchone()
+                row = None
+                if (
+                    provider_value != "magic_link"
+                    and provider_account_id
+                    and "provider" in self._user_columns
+                    and "provider_account_id" in self._user_columns
+                ):
+                    cursor = self._connection.execute(
+                        "SELECT user_id, created_at FROM users WHERE provider = ? AND provider_account_id = ?",
+                        (provider_value, provider_account_id),
+                    )
+                    row = cursor.fetchone()
+                if row is None:
+                    cursor = self._connection.execute(
+                        "SELECT user_id, created_at FROM users WHERE email = ?",
+                        (normalized_email,),
+                    )
+                    row = cursor.fetchone()
                 if row:
                     user_id = row["user_id"]
                     created_at = row["created_at"]
-                    update_fields = ["token_hash = ?", "last_login_at = ?"]
-                    update_values: list[Any] = [token_hash, now]
+                    update_fields = ["token_hash = ?", "last_login_at = ?", "email = ?"]
+                    update_values: list[Any] = [token_hash, now, normalized_email]
+                    if "provider" in self._user_columns:
+                        update_fields.append("provider = ?")
+                        update_values.append(provider_value)
+                    if "provider_account_id" in self._user_columns:
+                        if provider_account_id is not None:
+                            update_fields.append("provider_account_id = ?")
+                            update_values.append(provider_account_id)
+                        elif provider_value == "magic_link":
+                            update_fields.append("provider_account_id = ?")
+                            update_values.append("")
+                    if "name" in self._user_columns and name is not None:
+                        update_fields.append("name = ?")
+                        update_values.append(name)
+                    if "avatar_url" in self._user_columns and avatar_url is not None:
+                        update_fields.append("avatar_url = ?")
+                        update_values.append(avatar_url)
                     if "updated_at" in self._user_columns:
                         update_fields.append("updated_at = ?")
                         update_values.append(now)
@@ -202,12 +262,23 @@ class Storage:
                     user_id = uuid4().hex
                     created_at = now
                     insert_columns = ["user_id", "email"]
-                    insert_values: list[Any] = [user_id, email.lower()]
+                    insert_values: list[Any] = [user_id, normalized_email]
                     if "name" in self._user_columns:
                         insert_columns.append("name")
-                        insert_values.append(email.lower())
+                        insert_values.append(
+                            name if name is not None else (normalized_email if provider_value == "magic_link" else None)
+                        )
+                    if "avatar_url" in self._user_columns:
+                        insert_columns.append("avatar_url")
+                        insert_values.append(avatar_url)
                     insert_columns.extend(["token_hash", "created_at", "last_login_at"])
                     insert_values.extend([token_hash, created_at, now])
+                    if "provider" in self._user_columns:
+                        insert_columns.append("provider")
+                        insert_values.append(provider_value)
+                    if "provider_account_id" in self._user_columns:
+                        insert_columns.append("provider_account_id")
+                        insert_values.append(provider_account_id or "")
                     if "updated_at" in self._user_columns:
                         insert_columns.append("updated_at")
                         insert_values.append(now)
@@ -221,20 +292,26 @@ class Storage:
                         insert_values,
                     )
                 self._connection.commit()
+                cursor = self._connection.execute(
+                    """
+                    SELECT user_id, email, created_at, last_login_at, name, avatar_url, provider, provider_account_id
+                    FROM users
+                    WHERE user_id = ?
+                    """,
+                    (user_id,),
+                )
+                user_row = cursor.fetchone()
         except sqlite3.Error as exc:
             raise StorageError(f"Failed to persist user for '{email}': {exc}") from exc
-        return {
-            "user_id": user_id,
-            "email": email.lower(),
-            "created_at": created_at,
-            "last_login_at": now,
-        }
+        if user_row is None:
+            raise StorageError(f"Failed to load user record for '{email}' after upsert")
+        return dict(user_row)
 
     def get_user_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             cursor = self._connection.execute(
                 """
-                SELECT user_id, email, created_at, last_login_at
+                SELECT user_id, email, created_at, last_login_at, name, avatar_url, provider, provider_account_id
                 FROM users
                 WHERE token_hash = ?
                 """,
@@ -249,7 +326,7 @@ class Storage:
         with self._lock:
             cursor = self._connection.execute(
                 """
-                SELECT user_id, email, created_at, last_login_at
+                SELECT user_id, email, created_at, last_login_at, name, avatar_url, provider, provider_account_id
                 FROM users
                 WHERE user_id = ?
                 """,

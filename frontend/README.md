@@ -10,6 +10,9 @@ A Next.js App Router UI that surfaces labs, session management, and judge histor
 
 ## Development
 
+Before running the dev server, copy `.env.local.example` to `.env.local` and fill in your GitHub OAuth credentials plus a `NEXTAUTH_SECRET`. These values are required for the “Continue with GitHub” login button.
+Set `NEXTAUTH_URL` to the origin you’ll use locally (for example `http://localhost:3000`); NextAuth needs it to build redirect URLs.
+
 ```bash
 cd frontend
 npm install

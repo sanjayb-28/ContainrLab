@@ -60,7 +60,7 @@ cd compose && docker compose up -d
 
 ## Active / Upcoming Focus
 - Session TTL enforcement, idle shutdown, and warning UX.
-- Lightweight authentication (magic link or hosted OAuth) to associate sessions with users.
+- Lightweight authentication via GitHub OAuth (NextAuth) to associate sessions with users.
 - Agent patch suggestion workflow and apply-in-editor tooling.
 - Inspector visual diffing, timeline view, and exportable reports.
 - Runnerd hardening: better error translation, resource limit configuration, structured logging.
