@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import LabActions from "@/components/LabActions";
 import Terminal from "@/components/Terminal";
 import Markdown from "@/components/Markdown";
+import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 import { fetchLab, LabDetail } from "@/lib/labs";
 
 type LabPageProps = {
@@ -39,40 +40,39 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
   return (
     <LabSessionProvider initialSessionId={sessionId}>
       <div className="space-y-8">
-        <nav className="text-sm text-slate-400">
-          <Link href="/" className="text-sky-400 hover:text-sky-300">
-            &larr; Back to all labs
+        <nav>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-3 rounded-full border border-sky-400 px-5 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20 hover:text-white"
+          >
+            <span aria-hidden="true">&larr;</span>
+            Back to all labs
           </Link>
         </nav>
 
-        <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-slate-100">Description</h2>
+        <CollapsiblePanel title="Lab overview" defaultOpen>
           <Suspense fallback={<p className="text-sm text-slate-500">Loading description…</p>}>
             <Markdown content={lab.description} />
           </Suspense>
-        </section>
+        </CollapsiblePanel>
 
         <LabActions slug={params.slug} initialSessionId={sessionId} />
         <WorkspacePane />
-        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-          <InspectorPanel />
-        </div>
+        <InspectorPanel />
         <AgentDrawer labSlug={params.slug} />
-        <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-          <h2 className="mb-3 text-lg font-semibold text-slate-100">Terminal</h2>
-          <p className="text-sm text-slate-400">
-            Connected session appears after you start one from the controls.
-          </p>
-          <Terminal className="mt-4" />
-        </div>
+        <CollapsiblePanel
+          title="Terminal"
+          subtitle="Connected session appears after you start one from the controls."
+        >
+          <Terminal className="mt-3" />
+        </CollapsiblePanel>
 
         {lab.solution ? (
-          <section className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-            <h2 className="text-lg font-semibold text-slate-100">Solution</h2>
+          <CollapsiblePanel title="Solution" defaultOpen={false}>
             <Suspense fallback={<p className="text-sm text-slate-500">Loading solution…</p>}>
               <Markdown content={lab.solution} />
             </Suspense>
-          </section>
+          </CollapsiblePanel>
         ) : null}
       </div>
     </LabSessionProvider>

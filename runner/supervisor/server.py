@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import base64
 import binascii
 import io
@@ -16,6 +17,7 @@ import docker  # type: ignore[import]
 from docker.errors import APIError, NotFound  # type: ignore[import]
 import logging
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore[import]
+from starlette.websockets import WebSocketState  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
 
 app = FastAPI(title="runnerd")
@@ -338,7 +340,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
         async def pump_container_to_client() -> None:
             try:
                 while not stop_event.is_set():
-                    data = await loop.run_in_executor(None, raw_sock.recv, 4096)
+                    try:
+                        data = await loop.run_in_executor(None, raw_sock.recv, 4096)
+                    except TimeoutError:
+                        continue
                     if not data:
                         logger.debug("terminal socket closed session=%s", session_id)
                         break
@@ -398,11 +403,14 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                             sock.close()
             except Exception:
                 pass
-            await websocket.close()
+            if websocket.application_state is not WebSocketState.DISCONNECTED:
+                with contextlib.suppress(Exception):
+                    await websocket.close()
     except Exception as exc:
         logger.exception("terminal websocket failure %s", session_id, exc_info=exc)
-        with contextlib.suppress(Exception):
-            await websocket.close(code=1011, reason=str(exc))
+        if websocket.application_state is not WebSocketState.DISCONNECTED:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=1011, reason=str(exc))
 
 
 @app.post("/fs/list")

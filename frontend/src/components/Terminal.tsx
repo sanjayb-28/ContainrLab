@@ -23,10 +23,12 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
   const termRef = useRef<Xterm | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "closed">("idle");
+  const [status, setStatus] = useState<"idle" | "connecting" | "ready" | "closed" | "error">("idle");
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualCloseRef = useRef(false);
   const [reconnectTick, setReconnectTick] = useState(0);
+  const attemptsRef = useRef(0);
+  const [lastDisconnect, setLastDisconnect] = useState<{ code: number; reason: string } | null>(null);
 
   useEffect(() => {
     if (reconnectRef.current) {
@@ -36,8 +38,13 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
 
     if (!containerRef.current || !sessionId || !token) {
       setStatus(sessionId && token ? "closed" : "idle");
+      attemptsRef.current = 0;
+      setLastDisconnect(null);
       return;
     }
+
+    attemptsRef.current = 0;
+    setLastDisconnect(null);
 
     const term = new Xterm({
       theme: {
@@ -86,22 +93,33 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
       }, OPEN_DELAY_MS);
     });
 
-    socket.addEventListener("close", () => {
-      setStatus("closed");
-      if (!manualCloseRef.current && sessionId && token) {
-        reconnectRef.current = setTimeout(() => {
-          setReconnectTick((tick) => tick + 1);
-        }, 750);
+    const scheduleReconnect = (event?: CloseEvent | Event) => {
+      if (manualCloseRef.current || !sessionId || !token) {
+        return;
       }
+      const closeEvent = event instanceof CloseEvent ? event : undefined;
+      if (closeEvent) {
+        setLastDisconnect({ code: closeEvent.code, reason: closeEvent.reason });
+      }
+      attemptsRef.current += 1;
+      if (attemptsRef.current > 5) {
+        setStatus("error");
+        return;
+      }
+      const delay = Math.min(5000, 750 * 2 ** Math.max(0, attemptsRef.current - 1));
+      reconnectRef.current = setTimeout(() => {
+        setReconnectTick((tick) => tick + 1);
+      }, delay);
+    };
+
+    socket.addEventListener("close", (event) => {
+      setStatus(manualCloseRef.current ? "closed" : "closed");
+      scheduleReconnect(event);
     });
 
-    socket.addEventListener("error", () => {
+    socket.addEventListener("error", (event) => {
       setStatus("closed");
-      if (!manualCloseRef.current && sessionId && token) {
-        reconnectRef.current = setTimeout(() => {
-          setReconnectTick((tick) => tick + 1);
-        }, 750);
-      }
+      scheduleReconnect(event);
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -129,11 +147,15 @@ export default function Terminal({ shell = "/bin/sh", className = "" }: Terminal
     ? "Start a session to open a terminal."
     : !token
     ? "Sign in to connect to the terminal."
+    : status === "error"
+    ? "Terminal connection failed repeatedly. Please wait a moment, then click Start Session again if needed."
+    : lastDisconnect
+    ? `Terminal status: ${status}. Last disconnect (code ${lastDisconnect.code}): ${lastDisconnect.reason || "no reason supplied"}.`
     : `Terminal status: ${status}`;
 
   return (
     <div className={className}>
-      <div className="mb-2 text-xs text-slate-400">{statusMessage}</div>
+      <div className="mb-2 font-mono text-xs text-slate-400">{statusMessage}</div>
       <div
         ref={containerRef}
         className="h-72 w-full overflow-hidden rounded-lg border border-slate-800 bg-slate-950"

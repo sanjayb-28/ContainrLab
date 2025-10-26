@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
+import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 import { fetchInspector, type InspectorSummary, type InspectorTimelineEntry } from "@/lib/labs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -57,23 +58,43 @@ export default function InspectorPanel() {
   const timeline = useMemo(() => (summary ? buildTimeline(summary.timeline ?? []) : []), [summary]);
 
   if (!sessionId) {
-    return <p className="text-sm text-slate-500">Start a session to view build metrics.</p>;
+    return (
+      <CollapsiblePanel title="Inspector" defaultOpen>
+        <p className="text-sm text-slate-500">Start a session to view build metrics.</p>
+      </CollapsiblePanel>
+    );
   }
 
   if (!token) {
-    return <p className="text-sm text-slate-500">Sign in to load inspector metrics.</p>;
+    return (
+      <CollapsiblePanel title="Inspector" defaultOpen>
+        <p className="text-sm text-slate-500">Sign in to load inspector metrics.</p>
+      </CollapsiblePanel>
+    );
   }
 
   if (loading && !summary) {
-    return <p className="text-sm text-slate-400">Loading build metrics...</p>;
+    return (
+      <CollapsiblePanel title="Inspector" defaultOpen>
+        <p className="text-sm text-slate-400">Loading build metrics...</p>
+      </CollapsiblePanel>
+    );
   }
 
   if (error) {
-    return <p className="text-sm text-red-300">{error}</p>;
+    return (
+      <CollapsiblePanel title="Inspector" defaultOpen>
+        <p className="text-sm text-red-300">{error}</p>
+      </CollapsiblePanel>
+    );
   }
 
   if (!summary) {
-    return <p className="text-sm text-slate-500">No attempts yet.</p>;
+    return (
+      <CollapsiblePanel title="Inspector" defaultOpen>
+        <p className="text-sm text-slate-500">No attempts yet.</p>
+      </CollapsiblePanel>
+    );
   }
 
   const lastPassedText =
@@ -147,19 +168,22 @@ export default function InspectorPanel() {
   const previousExists = Boolean(summary.previous_metrics);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-100">Inspector</h2>
-        <button
-          type="button"
-          onClick={() => sessionId && load(sessionId)}
-          disabled={loading}
-          className="rounded bg-slate-700 px-3 py-1 text-xs text-slate-200 hover:bg-slate-600 disabled:cursor-not-allowed"
-        >
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-      </div>
-      <div className="rounded border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+    <CollapsiblePanel
+      title="Inspector"
+      actions={
+        sessionId && token ? (
+          <button
+            type="button"
+            onClick={() => sessionId && load(sessionId)}
+            disabled={loading}
+            className="rounded-full border border-slate-500 px-3 py-1 text-xs font-medium text-slate-200 transition hover:bg-slate-700/40 disabled:cursor-not-allowed"
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        ) : undefined
+      }
+    >
+      <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-200">
         <dl className="grid gap-2">
           <div className="flex justify-between">
             <dt className="text-slate-400">Attempts</dt>
@@ -219,7 +243,7 @@ export default function InspectorPanel() {
       </div>
 
       {timeline.length > 0 && (
-        <div className="space-y-3 rounded border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-200">
           <div className="flex items-center justify-between">
             <h3 className="text-base font-semibold text-slate-100">Attempt timeline</h3>
             <span className="text-xs text-slate-500">Newest first</span>
@@ -260,7 +284,7 @@ export default function InspectorPanel() {
           </ul>
         </div>
       )}
-    </div>
+    </CollapsiblePanel>
   );
 }
 
