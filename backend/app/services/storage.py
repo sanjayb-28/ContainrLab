@@ -307,6 +307,65 @@ class Storage:
             raise StorageError(f"Failed to load user record for '{email}' after upsert")
         return dict(user_row)
 
+    def get_active_sessions_for_lab(self, user_id: str, lab_slug: str) -> List[Dict[str, Any]]:
+        """Return active (non-ended, non-expired) sessions for a user+lab ordered by newest first."""
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at, user_id
+                FROM sessions
+                WHERE user_id = ? AND lab_slug = ? AND ended_at IS NULL
+                ORDER BY datetime(created_at) DESC
+                """,
+                (user_id, lab_slug),
+            )
+            rows = cursor.fetchall()
+        active: List[Dict[str, Any]] = []
+        for row in rows:
+            session = dict(row)
+            if self._session_is_expired(session, now):
+                self.mark_session_ended(session["session_id"], ended_at=session["expires_at"])
+                continue
+            active.append(session)
+        return active
+
+    def get_most_recent_session_for_lab(self, user_id: str, lab_slug: str) -> Optional[Dict[str, Any]]:
+        """Return the most recently created session for the given user and lab."""
+        with self._lock:
+            cursor = self._connection.execute(
+                """
+                SELECT session_id, lab_slug, runner_container, ttl_seconds, created_at, expires_at, ended_at, user_id
+                FROM sessions
+                WHERE user_id = ? AND lab_slug = ?
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """,
+                (user_id, lab_slug),
+            )
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        session = dict(row)
+        now = datetime.now(timezone.utc)
+        if session.get("ended_at") is None and self._session_is_expired(session, now):
+            self.mark_session_ended(session["session_id"], ended_at=session["expires_at"])
+            session["ended_at"] = session["expires_at"]
+        return session
+
+    def _session_is_expired(self, session: Dict[str, Any], now: datetime | None = None) -> bool:
+        expires_at = session.get("expires_at")
+        if not expires_at:
+            return False
+        try:
+            expires_dt = datetime.fromisoformat(expires_at)
+        except ValueError:
+            return False
+        reference = now or datetime.now(timezone.utc)
+        if expires_dt.tzinfo is None:
+            expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+        return reference >= expires_dt
+
     def get_user_by_token_hash(self, token_hash: str) -> Optional[Dict[str, Any]]:
         with self._lock:
             cursor = self._connection.execute(

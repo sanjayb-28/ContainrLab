@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DISPLAY_API_BASE, apiPost } from "@/lib/api";
-import { fetchSession, type SessionDetail } from "@/lib/labs";
+import { fetchActiveLabSession, fetchSession, type SessionDetail } from "@/lib/labs";
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
 
@@ -14,6 +14,14 @@ type Props = {
 type Message = { kind: "success" | "error"; text: string };
 
 type LoadingState = "start" | "judge" | "history" | "load-more" | null;
+
+type StartSessionResponse = {
+  session_id: string;
+  ttl: number;
+  runner_container: string;
+  expires_at: string;
+  replaced_session_ids?: string[];
+};
 
 const API_UNREACHABLE_TEXT = `Cannot reach the ContainrLab API at ${DISPLAY_API_BASE}. Is the backend running?`;
 
@@ -60,6 +68,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   const [loading, setLoading] = useState<LoadingState>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const attemptedRestoreRef = useRef(false);
 
   useEffect(() => {
     if (initialSessionId) {
@@ -68,6 +77,57 @@ export default function LabActions({ slug, initialSessionId }: Props) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSessionId]);
+
+  useEffect(() => {
+    if (!token) {
+      attemptedRestoreRef.current = false;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || attemptedRestoreRef.current) {
+      return;
+    }
+    if (initialSessionId || sessionId) {
+      attemptedRestoreRef.current = true;
+      return;
+    }
+    attemptedRestoreRef.current = true;
+    let cancelled = false;
+    const restore = async () => {
+      try {
+        const active = await fetchActiveLabSession(slug, token);
+        if (cancelled) {
+          return;
+        }
+        const detail = await fetchSession(active.session_id, token, 5);
+        if (cancelled) {
+          return;
+        }
+        setSession(detail);
+        setSessionField(detail.session_id);
+        setSessionId(detail.session_id);
+        setMessage({ kind: "success", text: `Restored session ${detail.session_id}.` });
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        const status = (error as any)?.status ?? (error as any)?.payload?.status;
+        if (status === 404) {
+          return;
+        }
+        if (isNetworkError(error)) {
+          setMessage({ kind: "error", text: API_UNREACHABLE_TEXT });
+          return;
+        }
+        console.warn("Failed to restore lab session", error);
+      }
+    };
+    void restore();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSessionId, sessionId, setSession, setSessionId, slug, token]);
 
   useEffect(() => {
     setSessionField(sessionId ?? "");
@@ -122,17 +182,14 @@ export default function LabActions({ slug, initialSessionId }: Props) {
       setMessage(null);
       setHistoryLimit(5);
       const authToken = requireToken();
-      const startResponse = await apiPost<{
-        session_id: string;
-        ttl: number;
-        runner_container: string;
-        expires_at: string;
-      }>(`/labs/${slug}/start`, {}, { token: authToken });
+      const startResponse = await apiPost<StartSessionResponse>(`/labs/${slug}/start`, {}, { token: authToken });
       const detail = await fetchSession(startResponse.session_id, authToken, 5);
       setSession(detail);
       setSessionField(detail.session_id);
       setSessionId(detail.session_id);
-      setMessage({ kind: "success", text: `Session ${startResponse.session_id} started.` });
+      const replacedIds = startResponse.replaced_session_ids ?? [];
+      const replacedText = replacedIds.length > 0 ? ` Closed previous session${replacedIds.length > 1 ? "s" : ""} ${replacedIds.join(", ")}.` : "";
+      setMessage({ kind: "success", text: `Session ${startResponse.session_id} started.${replacedText}` });
     } catch (error) {
       setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to start session.") });
     } finally {
