@@ -21,6 +21,7 @@ This local-only note exists so a fresh GPT-5 Codex chat can resume work quickly.
 
 ### Backend (FastAPI)
 - **Sessions:** `/labs/{slug}/start` seeds runner containers; `/sessions/{id}/build|run|stop` control builds and runtime.
+- **Session persistence:** `/labs/{slug}/session` restores the latest active session per user; starting a lab stops any existing session for that lab to keep one workspace alive at a time.
 - **Filesystem:** `/fs/{session}/list|read|write|create|rename|delete` forward to runnerd with workspace sandboxing.
 - **Inspector:** `/sessions/{id}/inspector` surfaces latest attempt metrics, layer list, cache hits, and delta versus the previous attempt.
 - **Terminal:** `/ws/terminal/{session}` upgrades to websocket for interactive shells.

@@ -123,3 +123,42 @@ def test_list_expired_sessions(tmp_path: Path) -> None:
     expired = storage.list_expired_sessions(before=cutoff)
     assert any(entry["session_id"] == "expired" for entry in expired)
     assert not any(entry["session_id"] == "active" for entry in expired)
+
+
+def test_get_active_sessions_filters_expired(tmp_path: Path) -> None:
+    storage = Storage(db_path=tmp_path / "active.db")
+    storage.init()
+    user = storage.upsert_user_token("active@example.com", "hash")
+
+    record = storage.record_session(
+        session_id="sess1",
+        lab_slug="lab1",
+        runner_container="runner-1",
+        ttl_seconds=60,
+        user_id=user["user_id"],
+    )
+    assert "expires_at" in record
+
+    storage.record_session(
+        session_id="sess2",
+        lab_slug="lab1",
+        runner_container="runner-2",
+        ttl_seconds=60,
+        user_id=user["user_id"],
+    )
+
+    # Force the first session to expire
+    expired_at = (datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat()
+    with storage._lock:  # type: ignore[attr-defined]
+        storage._connection.execute(  # type: ignore[attr-defined]
+            "UPDATE sessions SET expires_at = ? WHERE session_id = ?",
+            (expired_at, "sess1"),
+        )
+        storage._connection.commit()  # type: ignore[attr-defined]
+
+    active_sessions = storage.get_active_sessions_for_lab(user["user_id"], "lab1")
+    assert len(active_sessions) == 1
+    assert active_sessions[0]["session_id"] == "sess2"
+    expired_session = storage.get_session("sess1")
+    assert expired_session is not None
+    assert expired_session.get("ended_at") is not None

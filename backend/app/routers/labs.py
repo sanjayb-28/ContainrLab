@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import httpx  # type: ignore[import]
 from fastapi import APIRouter, Depends, HTTPException  # type: ignore[import]
-from pydantic import BaseModel  # type: ignore[import]
+from pydantic import BaseModel, Field  # type: ignore[import]
 
 from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
 from ..services.judge_service import JudgeService, get_judge_service
@@ -17,6 +18,7 @@ from ..services.storage import Storage, StorageError, get_storage
 router = APIRouter(prefix="/labs", tags=["labs"])
 
 SESSION_TTL_SECONDS = int(os.getenv("SESSION_TTL_SECONDS", "2700"))
+logger = logging.getLogger(__name__)
 
 
 class LabStartResponse(BaseModel):
@@ -24,6 +26,16 @@ class LabStartResponse(BaseModel):
     ttl: int
     runner_container: str
     expires_at: str
+    replaced_session_ids: List[str] = Field(default_factory=list)
+
+
+class LabActiveSessionResponse(BaseModel):
+    session_id: str
+    ttl: int
+    runner_container: str
+    created_at: str
+    expires_at: str
+    ended_at: str | None = None
 
 
 class LabListItem(BaseModel):
@@ -63,6 +75,35 @@ async def start_lab(
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> LabStartResponse:
     """Create a disposable runner session for the requested lab."""
+    replaced_session_ids: list[str] = []
+    existing_sessions = storage.get_active_sessions_for_lab(user.user_id, lab_slug)
+    for existing in existing_sessions:
+        replaced_session_ids.append(existing["session_id"])
+        try:
+            await runner.stop(existing["session_id"])
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Failed to stop existing session %s for lab %s: %s",
+                existing["session_id"],
+                lab_slug,
+                exc.response.text,
+            )
+        except httpx.HTTPError as exc:  # pragma: no cover - network issues hard to simulate
+            logger.warning(
+                "Failed to stop existing session %s for lab %s: %s",
+                existing["session_id"],
+                lab_slug,
+                exc,
+            )
+        try:
+            storage.mark_session_ended(existing["session_id"])
+        except StorageError as exc:
+            logger.warning(
+                "Failed to mark session %s as ended while starting new session: %s",
+                existing["session_id"],
+                exc,
+            )
+
     session_id = uuid.uuid4().hex
     try:
         runner_payload = await runner.start(session_id=session_id, lab_slug=lab_slug)
@@ -93,6 +134,27 @@ async def start_lab(
         ttl=SESSION_TTL_SECONDS,
         runner_container=container_name,
         expires_at=expires_at,
+        replaced_session_ids=replaced_session_ids,
+    )
+
+
+@router.get("/{lab_slug}/session", response_model=LabActiveSessionResponse)
+async def get_active_lab_session(
+    lab_slug: str,
+    storage: Storage = Depends(get_storage),
+    user: AuthenticatedUser = Depends(get_current_user),
+) -> LabActiveSessionResponse:
+    sessions = storage.get_active_sessions_for_lab(user.user_id, lab_slug)
+    if not sessions:
+        raise HTTPException(status_code=404, detail="No active session found for this lab")
+    session = sessions[0]
+    return LabActiveSessionResponse(
+        session_id=session["session_id"],
+        ttl=session["ttl_seconds"],
+        runner_container=session["runner_container"],
+        created_at=session["created_at"],
+        expires_at=session["expires_at"],
+        ended_at=session.get("ended_at"),
     )
 
 

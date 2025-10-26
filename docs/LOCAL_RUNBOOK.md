@@ -102,6 +102,7 @@ The script exits with a non-zero status if any step fails, making it safe to int
 
 - [ ] GitHub login succeeds and the signed-in banner appears.
 - [ ] Starting a lab session creates a new workspace and opens the terminal/editor/inspector panes.
+- [ ] Navigating away (or logging out and back in) restores the same active session instead of creating a fresh one.
 - [ ] File edits autosave and can trigger a build-on-save if enabled.
 - [ ] Agent hints/explanations respond with either Gemini output or the deterministic fallback.
 - [ ] Agent patch suggestions can be applied via the UI and reflected in the editor.

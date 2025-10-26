@@ -67,6 +67,19 @@ export async function fetchLab(slug: string): Promise<LabDetail> {
   return apiGet(`/labs/${slug}`);
 }
 
+export type ActiveLabSession = {
+  session_id: string;
+  ttl: number;
+  runner_container: string;
+  created_at: string;
+  expires_at: string;
+  ended_at?: string | null;
+};
+
+export async function fetchActiveLabSession(labSlug: string, token: string): Promise<ActiveLabSession> {
+  return apiGet(`/labs/${labSlug}/session`, { token });
+}
+
 export async function fetchSession(sessionId: string, token: string, limit?: number): Promise<SessionDetail> {
   const params = limit && limit > 0 ? `?limit=${limit}` : "";
   return apiGet(`/sessions/${sessionId}${params}`, { token });
