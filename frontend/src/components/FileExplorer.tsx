@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  createEntry,
-  deleteEntry,
-  FsEntry,
-  listPath,
-  renameEntry,
-} from "@/lib/fs";
+import { createEntry, deleteEntry, FsEntry, listPath, renameEntry } from "@/lib/fs";
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
 import {
@@ -18,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Modal from "@/components/ui/Modal";
 
 const WORKSPACE_ROOT = "/workspace";
 
@@ -93,6 +88,9 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
     const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set([WORKSPACE_ROOT]));
     const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
     const [error, setError] = useState<string | null>(null);
+    const [createError, setCreateError] = useState<string | null>(null);
+    const [pendingCreate, setPendingCreate] = useState<{ kind: EntryKind; directory: string } | null>(null);
+    const [newEntryName, setNewEntryName] = useState<string>("");
 
     const sessionRef = useRef<string | null>(null);
     sessionRef.current = sessionId ?? null;
@@ -198,57 +196,59 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
       [entriesByPath, fetchEntries]
     );
 
-    const promptForName = useCallback(
-      (kind: EntryKind): string | null => {
-        if (typeof window === "undefined") {
-          return null;
-        }
-        const noun = kind === "file" ? "file" : "folder";
-        const suggestion = kind === "file" ? "app.py" : "new-folder";
-        const response = window.prompt(`Enter a name for the new ${noun}`, suggestion);
-        if (response == null) {
-          return null;
-        }
-        const trimmed = response.trim();
-        if (!trimmed) {
-          setError(`A ${noun} name is required.`);
-          return null;
-        }
-        if (trimmed.includes("..")) {
-          setError("Parent directory references ('..') are not allowed.");
-          return null;
-        }
-        return trimmed.replace(/^[\\/]+/, "");
-      },
-      []
-    );
-
     const handleCreate = useCallback(
-      async (kind: EntryKind, directory: string) => {
+      (kind: EntryKind, directory: string) => {
         if (!sessionId || !token) {
           setError("Sign in and start a session before creating files.");
           return;
         }
-        const name = promptForName(kind);
-        if (!name) {
+        setCreateError(null);
+        setError(null);
+        setPendingCreate({ kind, directory });
+        setNewEntryName(kind === "file" ? "app.py" : "new-folder");
+      },
+      [sessionId, token]
+    );
+
+    const closeCreateModal = useCallback(() => {
+      setPendingCreate(null);
+      setNewEntryName("");
+      setCreateError(null);
+    }, []);
+
+    const submitCreate = useCallback(
+      async () => {
+        if (!pendingCreate || !sessionId || !token) {
           return;
         }
-        const normalized = joinPath(directory, name);
+        const noun = pendingCreate.kind === "file" ? "file" : "folder";
+        const trimmed = newEntryName.trim();
+        if (!trimmed) {
+          setCreateError(`A ${noun} name is required.`);
+          return;
+        }
+        if (trimmed.includes("..")) {
+          setCreateError("Parent directory references ('..') are not allowed.");
+          return;
+        }
+        const normalizedName = trimmed.replace(/^[\\/]+/, "");
+        const normalized = joinPath(pendingCreate.directory, normalizedName);
         try {
-          if (kind === "file") {
+          if (pendingCreate.kind === "file") {
             await createEntry(sessionId, normalized, "file", "", token);
           } else {
             await createEntry(sessionId, normalized, "directory", undefined, token);
           }
-          removeEntryTree(directory);
-          await fetchEntries(directory);
-          onEntryCreated(normalized, kind);
+          removeEntryTree(pendingCreate.directory);
+          await fetchEntries(pendingCreate.directory);
+          onEntryCreated(normalized, pendingCreate.kind);
+          closeCreateModal();
         } catch (err) {
           const message = err instanceof Error ? err.message : "Failed to create entry";
-          setError(message);
+          setCreateError(message);
         }
       },
-      [fetchEntries, onEntryCreated, promptForName, removeEntryTree, sessionId, token]
+      [closeCreateModal, fetchEntries, newEntryName, onEntryCreated, pendingCreate, removeEntryTree, sessionId, token]
     );
 
     const handleRename = useCallback(
@@ -292,7 +292,8 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
     const currentEntries = entriesByPath[activeDirectory] ?? [];
 
     return (
-      <div className="space-y-4">
+      <>
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-100">Explorer</h3>
           <div className="flex gap-2 text-xs">
@@ -359,7 +360,52 @@ const FileExplorer = forwardRef<FileExplorerHandle, FileExplorerProps>(
             </li>
           )}
         </ul>
-      </div>
+        </div>
+        <Modal
+        open={Boolean(pendingCreate)}
+        onClose={closeCreateModal}
+        title={pendingCreate ? `Create a new ${pendingCreate.kind === "file" ? "file" : "folder"}` : undefined}
+        size="sm"
+        footer={
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={closeCreateModal}
+              className="inline-flex items-center justify-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void submitCreate()}
+              className="inline-flex items-center justify-center rounded-full border border-sky-400 px-4 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20 hover:text-white"
+            >
+              Create
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            Name
+            <input
+              value={newEntryName}
+              onChange={(event) => setNewEntryName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void submitCreate();
+                }
+              }}
+              autoFocus
+              placeholder={pendingCreate?.kind === "file" ? "app.py" : "new-folder"}
+              className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+            />
+          </label>
+          {createError ? <p className="text-xs text-rose-300">{createError}</p> : null}
+        </div>
+        </Modal>
+      </>
     );
   }
 );

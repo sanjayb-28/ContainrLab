@@ -5,6 +5,7 @@ import { DISPLAY_API_BASE, apiPost } from "@/lib/api";
 import { fetchActiveLabSession, fetchSession, type SessionDetail } from "@/lib/labs";
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
+import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 
 type Props = {
   slug: string;
@@ -13,7 +14,7 @@ type Props = {
 
 type Message = { kind: "success" | "error"; text: string };
 
-type LoadingState = "start" | "judge" | "history" | "load-more" | null;
+type LoadingState = "start" | "judge" | "history" | null;
 
 type StartSessionResponse = {
   session_id: string;
@@ -24,6 +25,7 @@ type StartSessionResponse = {
 };
 
 const API_UNREACHABLE_TEXT = `Cannot reach the ContainrLab API at ${DISPLAY_API_BASE}. Is the backend running?`;
+const HISTORY_LIMIT = 10;
 
 function isNetworkError(error: unknown): error is Error {
   return (
@@ -64,7 +66,6 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   const { session, sessionId, setSession, setSessionId } = useLabSession();
 
   const [sessionField, setSessionField] = useState<string>(initialSessionId ?? sessionId ?? "");
-  const [historyLimit, setHistoryLimit] = useState<number>(5);
   const [loading, setLoading] = useState<LoadingState>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -164,7 +165,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   }, [token]);
 
   const refreshHistory = useCallback(
-    async (id: string, limit = historyLimit) => {
+    async (id: string, limit = HISTORY_LIMIT) => {
       const authToken = requireToken();
       const detail = await fetchSession(id, authToken, limit > 0 ? limit : undefined);
       setSession(detail);
@@ -173,15 +174,17 @@ export default function LabActions({ slug, initialSessionId }: Props) {
       setMessage(null);
       return detail;
     },
-    [historyLimit, requireToken, setSession, setSessionId]
+    [requireToken, setSession, setSessionId]
   );
 
   const handleStart = useCallback(async () => {
     try {
       setLoading("start");
       setMessage(null);
-      setHistoryLimit(5);
       const authToken = requireToken();
+      setSession(null);
+      setSessionId(null);
+      setSessionField("");
       const startResponse = await apiPost<StartSessionResponse>(`/labs/${slug}/start`, {}, { token: authToken });
       const detail = await fetchSession(startResponse.session_id, authToken, 5);
       setSession(detail);
@@ -241,32 +244,14 @@ export default function LabActions({ slug, initialSessionId }: Props) {
     }
     try {
       setLoading("history");
-      await refreshHistory(id, historyLimit);
+      await refreshHistory(id, HISTORY_LIMIT);
       setMessage({ kind: "success", text: "History refreshed." });
     } catch (error) {
       setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to load history.") });
     } finally {
       setLoading(null);
     }
-  }, [currentSessionId, historyLimit, refreshHistory]);
-
-  const handleLoadMore = useCallback(async () => {
-    const id = currentSessionId;
-    if (!id) {
-      setMessage({ kind: "error", text: "Provide a session ID first." });
-      return;
-    }
-    const nextLimit = historyLimit + 5;
-    setHistoryLimit(nextLimit);
-    try {
-      setLoading("load-more");
-      await refreshHistory(id, nextLimit);
-    } catch (error) {
-      setMessage({ kind: "error", text: resolveErrorMessage(error, "Failed to load more attempts.") });
-    } finally {
-      setLoading(null);
-    }
-  }, [currentSessionId, historyLimit, refreshHistory]);
+  }, [currentSessionId, refreshHistory]);
 
   const attempts = useMemo(() => session?.attempts ?? [], [session]);
 
@@ -274,113 +259,95 @@ export default function LabActions({ slug, initialSessionId }: Props) {
 
   useEffect(() => {
     if (token && currentSessionId && !session) {
-      void refreshHistory(currentSessionId, historyLimit).catch((err) => {
+      void refreshHistory(currentSessionId, HISTORY_LIMIT).catch((err) => {
         console.warn("Failed to hydrate session history", err);
       });
     }
-  }, [currentSessionId, historyLimit, refreshHistory, session, token]);
+  }, [currentSessionId, refreshHistory, session, token]);
 
   return (
-    <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-lg">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-100">Session controls</h2>
-          <p className="text-sm text-slate-400">
-            Start a fresh workspace, run the judge, or inspect prior attempts.
-          </p>
-          {!token && (
-            <p className="text-xs text-amber-200">Sign in above to enable session actions.</p>
-          )}
-          {session && (
-            <p
-              className={`text-xs ${
-                sessionExpired ? "text-red-300" : ttlWarning ? "text-amber-200" : "text-slate-400"
-              }`}
+    <div className="space-y-5">
+      <CollapsiblePanel
+        title="Session controls"
+        subtitle={
+          !token
+            ? "Sign in above to enable session actions."
+            : "Start a fresh workspace, run the judge, or inspect prior attempts."
+        }
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleStart}
+              disabled={actionsDisabled}
+              className="rounded-full border border-sky-400 px-4 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {sessionExpired
-                ? `Session expired at ${new Date(session.ended_at ?? session.expires_at).toLocaleTimeString()}`
-                : `Session expires in ${formatDuration(remainingSeconds)} (${new Date(
-                    session.expires_at
-                  ).toLocaleTimeString()})`}
-            </p>
-          )}
+              {loading === "start" ? "Starting..." : "Start session"}
+            </button>
+            <button
+              type="button"
+              onClick={handleJudge}
+              disabled={!token || loading === "judge" || sessionExpired || !currentSessionId}
+              className="rounded-full border border-emerald-400 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading === "judge" ? "Checking..." : "Run judge"}
+            </button>
+            <button
+              type="button"
+              onClick={handleHistoryRefresh}
+              disabled={!token || loading === "history" || !currentSessionId}
+              className="rounded-full border border-slate-500 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading === "history" ? "Refreshing..." : "Refresh history"}
+            </button>
+          </div>
+        }
+      >
+        {session && (
+          <p
+            className={`text-xs ${sessionExpired ? "text-red-300" : ttlWarning ? "text-amber-200" : "text-slate-400"}`}
+          >
+            {sessionExpired
+              ? `Session expired at ${new Date(session.ended_at ?? session.expires_at).toLocaleTimeString()}`
+              : `Session expires in ${formatDuration(remainingSeconds)} (${new Date(
+                  session.expires_at
+                ).toLocaleTimeString()})`}
+          </p>
+        )}
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+          <label className="flex flex-col gap-2 text-sm text-slate-300">
+            Session ID
+            <input
+              value={sessionField}
+              readOnly
+              className="cursor-not-allowed rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
+            />
+          </label>
+          <p className="mt-2 text-xs text-slate-500">Session IDs stay linked to your account and refresh automatically.</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={actionsDisabled}
-            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+        {message && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              message.kind === "success"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                : "border-red-500/40 bg-red-500/10 text-red-200"
+            }`}
           >
-            {loading === "start" ? "Starting..." : "Start session"}
-          </button>
-          <button
-            type="button"
-            onClick={handleJudge}
-            disabled={!token || loading === "judge" || sessionExpired || !currentSessionId}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading === "judge" ? "Checking..." : "Run judge"}
-          </button>
-          <button
-            type="button"
-            onClick={handleHistoryRefresh}
-            disabled={!token || loading === "history" || !currentSessionId}
-            className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading === "history" ? "Refreshing..." : "Refresh history"}
-          </button>
-          <button
-            type="button"
-            onClick={handleLoadMore}
-            disabled={!token || loading === "load-more" || !currentSessionId}
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading === "load-more" ? "Loading..." : "Load more"}
-          </button>
-        </div>
-      </div>
+            {message.text}
+          </div>
+        )}
+      </CollapsiblePanel>
 
-      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-        <label className="flex flex-col gap-2 text-sm text-slate-300">
-          Session ID
-          <input
-            value={sessionField}
-            onChange={(event) => setSessionField(event.target.value)}
-            placeholder="Paste an existing session ID"
-            className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
-            disabled={loading === "history" || loading === "load-more"}
-          />
-        </label>
-        <p className="mt-2 text-xs text-slate-500">
-          After running the judge or starting a new session you can refresh or load more attempts using this
-          identifier.
-        </p>
-      </div>
-
-      {message && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            message.kind === "success"
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-              : "border-red-500/40 bg-red-500/10 text-red-200"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
-
-      <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-        <h3 className="font-semibold text-slate-100">Current session</h3>
+      <CollapsiblePanel title="Current session">
         {session ? (
           <div className="space-y-2 text-sm text-slate-300">
             <div>
               <span className="text-slate-500">Session ID:</span>{" "}
-              <code className="break-all text-slate-200">{session.session_id}</code>
+              <code className="break-all font-mono text-slate-100">{session.session_id}</code>
             </div>
             <div>
               <span className="text-slate-500">Runner container:</span>{" "}
-              <code className="break-all text-slate-200">{session.runner_container}</code>
+              <code className="break-all font-mono text-slate-100">{session.runner_container}</code>
             </div>
             <div className="flex flex-wrap gap-4 text-slate-400">
               <span>Lab: {session.lab_slug}</span>
@@ -390,27 +357,23 @@ export default function LabActions({ slug, initialSessionId }: Props) {
           </div>
         ) : (
           <p className="text-sm text-slate-500">
-            No session yet. Start one or paste an existing session ID to view details and history.
+            No session yet. Start one to populate workspace files, terminal, and judge history.
           </p>
         )}
-      </div>
+      </CollapsiblePanel>
 
-      <section className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/60 p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-slate-100">Recent judge attempts</h3>
-          <span className="text-xs text-slate-500">Showing up to {historyLimit} entries</span>
-        </div>
+      <CollapsiblePanel title="Recent judge attempts" subtitle="Newest attempts first">
         {attempts.length === 0 ? (
           <p className="text-sm text-slate-500">No attempts yet. Run the judge to populate this section.</p>
         ) : (
           <ul className="space-y-3 text-sm">
             {attempts.map((attempt) => (
-              <li key={attempt.id} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+              <li key={attempt.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium text-slate-100">Attempt #{attempt.id}</span>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      attempt.passed ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-200"
+                      attempt.passed ? "border border-emerald-400/60 text-emerald-200" : "border border-red-400/60 text-red-200"
                     }`}
                   >
                     {attempt.passed ? "Passed" : "Failed"}
@@ -447,7 +410,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
             ))}
           </ul>
         )}
-      </section>
-    </section>
+      </CollapsiblePanel>
+    </div>
   );
 }

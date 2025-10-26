@@ -13,6 +13,31 @@ export const API_BASE =
 
 type ApiOptions = RequestInit & { token?: string };
 
+type HeaderRecord = Record<string, string>;
+
+function toHeaderRecord(initHeaders?: HeadersInit): HeaderRecord {
+  const headers: HeaderRecord = {};
+  if (!initHeaders) {
+    return headers;
+  }
+  if (typeof Headers !== "undefined" && initHeaders instanceof Headers) {
+    initHeaders.forEach((value, key) => {
+      headers[key] = value;
+    });
+    return headers;
+  }
+  if (Array.isArray(initHeaders)) {
+    for (const [key, value] of initHeaders) {
+      headers[key] = value;
+    }
+    return headers;
+  }
+  Object.entries(initHeaders as Record<string, string>).forEach(([key, value]) => {
+    headers[key] = value;
+  });
+  return headers;
+}
+
 async function handleJsonResponse(response: Response) {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
@@ -29,17 +54,12 @@ async function handleJsonResponse(response: Response) {
   return payload;
 }
 
-function mergeHeaders(initHeaders: HeadersInit | undefined, token?: string): Headers {
-  const headers = new Headers(initHeaders || {});
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-  return headers;
-}
-
 export async function apiGet<T>(path: string, options?: ApiOptions): Promise<T> {
   const { token, headers: initHeaders, ...rest } = options ?? {};
-  const requestHeaders = mergeHeaders(initHeaders, token);
+  const requestHeaders = toHeaderRecord(initHeaders);
+  if (token) {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       cache: "no-store",
@@ -64,8 +84,11 @@ export async function apiPost<T>(
   options?: ApiOptions
 ): Promise<T> {
   const { token, headers: initHeaders, ...rest } = options ?? {};
-  const requestHeaders = mergeHeaders(initHeaders, token);
-  requestHeaders.set("Content-Type", "application/json");
+  const requestHeaders = toHeaderRecord(initHeaders);
+  requestHeaders["Content-Type"] = "application/json";
+  if (token) {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",

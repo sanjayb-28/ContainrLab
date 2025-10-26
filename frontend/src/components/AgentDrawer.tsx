@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/components/AuthProvider";
 import { useLabSession } from "@/components/LabSessionProvider";
+import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 import {
   applyPatch,
   requestExplain,
@@ -71,7 +72,6 @@ async function copyToClipboard(text: string | undefined) {
 export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
   const { token } = useAuth();
   const { sessionId } = useLabSession();
-  const [open, setOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<AgentHistoryEntry[]>([]);
   const [loadingMode, setLoadingMode] = useState<AgentMode | null>(null);
@@ -204,7 +204,6 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
       setAbortController(controller);
       setLoadingMode(mode);
       setError(null);
-      setOpen(true);
 
       try {
         if (mode === "hint") {
@@ -234,15 +233,7 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
         });
       }
     },
-    [
-      sessionId,
-      token,
-      loadingMode,
-      labSlug,
-      handleFailure,
-      handleHintExplainSuccess,
-      handlePatchSuccess,
-    ]
+    [sessionId, token, loadingMode, labSlug, handleFailure, handleHintExplainSuccess, handlePatchSuccess]
   );
 
   const handleSend = useCallback(
@@ -302,9 +293,7 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
       } catch (err) {
         const message = err instanceof Error && err.message ? err.message : "Failed to apply patch.";
         setHistory((prev) =>
-          prev.map((item) =>
-            item.id === entryId && item.mode === "patch" ? { ...item, applyError: message } : item
-          )
+          prev.map((item) => (item.id === entryId && item.mode === "patch" ? { ...item, applyError: message } : item))
         );
         setError(message);
       } finally {
@@ -315,162 +304,82 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
   );
 
   return (
-    <aside className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/70 p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-100">Agent</h2>
-        <button
-          type="button"
-          className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-200 hover:bg-slate-800"
-          onClick={() => setOpen((prev) => !prev)}
-        >
-          {open ? "Hide" : "Show"}
-        </button>
-      </div>
-
-      {statusText && (
-        <p className="mb-3 text-xs text-slate-400">
-          {loadingMode && (
-            <span className="mr-2 inline-flex h-3 w-3 animate-spin rounded-full border-2 border-slate-500 border-t-transparent align-middle" />
-          )}
-          {statusText}
-        </p>
-      )}
-
-      {open && (
-        <div className="space-y-4 text-sm text-slate-200">
-          {!sessionId && <p className="text-slate-500">Start a session to chat with the agent.</p>}
-          {!token && <p className="text-slate-500">Sign in to enable agent assistance.</p>}
+    <CollapsiblePanel
+      title="AI assistant"
+      subtitle={statusText ?? "Ask for hints, explanations, or patch suggestions to unblock your lab."}
+      defaultOpen
+    >
+      <div className="space-y-4 text-sm text-slate-200">
+        <label className="flex flex-col gap-2 text-xs text-slate-300">
+          Prompt
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Ask for a hint, explanation, or patch..."
-            className="h-24 w-full rounded border border-slate-800 bg-slate-950 p-2 text-slate-100 placeholder:text-slate-500"
-            disabled={disabled}
+            onKeyDown={(event) => {
+              if (event.metaKey && event.key.toLowerCase() === "enter") {
+                event.preventDefault();
+                handleSend("hint");
+              }
+            }}
+            rows={3}
+            className="rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+            placeholder="Explain what RUN does in a Dockerfile"
           />
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="rounded bg-sky-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => handleSend("hint")}
-              disabled={disabled}
-            >
-              {loadingMode === "hint" ? "Sending..." : "Ask for hint"}
-            </button>
-            <button
-              type="button"
-              className="rounded bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => handleSend("explain")}
-              disabled={disabled}
-            >
-              {loadingMode === "explain" ? "Sending..." : "Ask for explain"}
-            </button>
-            <button
-              type="button"
-              className="rounded bg-violet-500 px-3 py-2 text-xs font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={() => handleSend("patch")}
-              disabled={disabled}
-            >
-              {loadingMode === "patch" ? "Requesting..." : "Suggest patch"}
-            </button>
-            {loadingMode && (
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="rounded border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-            )}
-          </div>
-          {error && <p className="text-red-300">{error}</p>}
+        </label>
+        {!sessionId && <p className="text-xs text-amber-200">Start a session to enable the agent.</p>}
+        {sessionId && !token && <p className="text-xs text-amber-200">Sign in to chat with the agent.</p>}
 
-          <div className="space-y-3">
-            {history.length === 0 ? (
-              <p className="text-xs text-slate-500">No agent responses yet.</p>
-            ) : (
-              history.map((entry) => {
-                if (entry.mode === "patch") {
-                  return (
-                    <div
-                      key={entry.id}
-                      className="space-y-3 rounded border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200"
-                    >
-                      <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
-                        <span>Patch suggestion</span>
-                        <span>
-                          {entry.error
-                            ? "Failed"
-                            : entry.source === "gemini"
-                            ? "Gemini"
-                            : entry.source === "fallback"
-                            ? "Fallback"
-                            : entry.source}
-                        </span>
-                      </div>
-                      <p className="text-slate-400">
-                        <span className="font-semibold text-slate-300">You:</span> {entry.prompt}
-                      </p>
-                      <p className="whitespace-pre-wrap text-slate-100">{entry.message}</p>
-                      {entry.files.length > 0 ? (
-                        <ul className="space-y-3">
-                          {entry.files.map((file) => (
-                            <li key={`${entry.id}-${file.path}`} className="rounded border border-slate-800 bg-slate-900/60 p-3">
-                              <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
-                                <code className="text-slate-200">{file.path}</code>
-                                {file.description && <span className="text-slate-500">{file.description}</span>}
-                              </div>
-                              <pre className="mt-2 max-h-48 overflow-auto rounded bg-slate-950/80 p-3 text-[11px] text-slate-200">
-                                {file.content}
-                              </pre>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-xs text-slate-500">No concrete file changes provided.</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                        <button
-                          type="button"
-                          className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => handleResend(entry)}
-                          disabled={Boolean(loadingMode)}
-                        >
-                          Resend
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => handleCopyPrompt(entry)}
-                        >
-                          Copy prompt
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border border-emerald-700 px-2 py-1 text-emerald-200 hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => handleApplyPatch(entry.id)}
-                          disabled={
-                            entry.files.length === 0 ||
-                            !token ||
-                            !sessionId ||
-                            entry.applied ||
-                            applyingPatchId === entry.id
-                          }
-                        >
-                          {entry.applied ? "Applied" : applyingPatchId === entry.id ? "Applying..." : "Apply patch"}
-                        </button>
-                        {entry.applyError && <span className="text-red-300">{entry.applyError}</span>}
-                      </div>
-                    </div>
-                  );
-                }
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <button
+            type="button"
+            className="rounded-full border border-sky-400 px-3 py-2 font-semibold text-sky-100 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => handleSend("hint")}
+            disabled={disabled}
+          >
+            {loadingMode === "hint" ? "Sending..." : "Ask for hint"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-emerald-400 px-3 py-2 font-semibold text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => handleSend("explain")}
+            disabled={disabled}
+          >
+            {loadingMode === "explain" ? "Sending..." : "Ask for explain"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-violet-400 px-3 py-2 font-semibold text-violet-100 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => handleSend("patch")}
+            disabled={disabled}
+          >
+            {loadingMode === "patch" ? "Requesting..." : "Suggest patch"}
+          </button>
+          {loadingMode && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="rounded-full border border-slate-600 px-3 py-2 font-semibold text-slate-200 transition hover:bg-slate-800"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+        {error && <p className="text-xs text-red-300">{error}</p>}
 
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-100">History</h3>
+          {history.length === 0 ? (
+            <p className="text-xs text-slate-500">No agent responses yet.</p>
+          ) : (
+            history.map((entry) => {
+              if (entry.mode === "patch") {
                 return (
                   <div
                     key={entry.id}
-                    className="rounded border border-slate-800 bg-slate-950/70 p-3 text-xs text-slate-200"
+                    className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-xs text-slate-200"
                   >
-                    <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
-                      <span>{entry.mode === "hint" ? "Hint" : "Explanation"}</span>
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
+                      <span>Patch suggestion</span>
                       <span>
                         {entry.error
                           ? "Failed"
@@ -481,18 +390,31 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
                           : entry.source}
                       </span>
                     </div>
-                    <p className="mb-2 text-slate-400">
+                    <p className="text-slate-400">
                       <span className="font-semibold text-slate-300">You:</span> {entry.prompt}
                     </p>
-                    {entry.error ? (
-                      <p className="text-red-300">{entry.error}</p>
+                    <p className="whitespace-pre-wrap text-slate-100">{entry.message}</p>
+                    {entry.files.length > 0 ? (
+                      <ul className="space-y-3">
+                        {entry.files.map((file) => (
+                          <li key={`${entry.id}-${file.path}`} className="rounded border border-white/5 bg-slate-900/60 p-3">
+                            <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
+                              <code className="text-slate-200">{file.path}</code>
+                              {file.description && <span className="text-slate-500">{file.description}</span>}
+                            </div>
+                            <pre className="mt-2 max-h-48 overflow-auto rounded bg-slate-950/80 p-3 text-[11px] text-slate-200">
+                              {file.content}
+                            </pre>
+                          </li>
+                        ))}
+                      </ul>
                     ) : (
-                      <p className="whitespace-pre-wrap text-slate-100">{entry.answer ?? "No response available."}</p>
+                      <p className="text-xs text-slate-500">No concrete file changes provided.</p>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       <button
                         type="button"
-                        className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800"
+                        className="rounded-full border border-slate-600 px-2 py-1 text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() => handleResend(entry)}
                         disabled={Boolean(loadingMode)}
                       >
@@ -500,27 +422,87 @@ export default function AgentDrawer({ labSlug }: AgentDrawerProps) {
                       </button>
                       <button
                         type="button"
-                        className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => handleCopyAnswer(entry)}
-                        disabled={!entry.answer}
-                      >
-                        Copy answer
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded border border-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-800"
+                        className="rounded-full border border-slate-600 px-2 py-1 text-slate-200 transition hover:bg-slate-800"
                         onClick={() => handleCopyPrompt(entry)}
                       >
                         Copy prompt
                       </button>
+                      <button
+                        type="button"
+                        className="rounded-full border border-emerald-600 px-2 py-1 text-emerald-200 transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => handleApplyPatch(entry.id)}
+                        disabled={
+                          entry.files.length === 0 ||
+                          !token ||
+                          !sessionId ||
+                          entry.applied ||
+                          applyingPatchId === entry.id
+                        }
+                      >
+                        {entry.applied ? "Applied" : applyingPatchId === entry.id ? "Applying..." : "Apply patch"}
+                      </button>
+                      {entry.applyError && <span className="text-red-300">{entry.applyError}</span>}
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
+              }
+
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-2xl border border-white/10 bg-slate-950/60 p-3 text-xs text-slate-200"
+                >
+                  <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-400">
+                    <span>{entry.mode === "hint" ? "Hint" : "Explanation"}</span>
+                    <span>
+                      {entry.error
+                        ? "Failed"
+                        : entry.source === "gemini"
+                        ? "Gemini"
+                        : entry.source === "fallback"
+                        ? "Fallback"
+                        : entry.source}
+                    </span>
+                  </div>
+                  <p className="text-slate-300">
+                    <span className="font-semibold text-slate-200">You:</span> {entry.prompt}
+                  </p>
+                  {entry.answer && (
+                    <p className="mt-2 whitespace-pre-wrap text-slate-100">{entry.answer}</p>
+                  )}
+                  {entry.error && <p className="mt-2 text-red-300">{entry.error}</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
+                    <button
+                      type="button"
+                      className="rounded-full border border-slate-600 px-2 py-1 text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => handleResend(entry)}
+                      disabled={Boolean(loadingMode)}
+                    >
+                      Resend
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full border border-slate-600 px-2 py-1 text-slate-200 transition hover:bg-slate-800"
+                      onClick={() => handleCopyPrompt(entry)}
+                    >
+                      Copy prompt
+                    </button>
+                    {entry.answer && (
+                      <button
+                        type="button"
+                        className="rounded-full border border-slate-600 px-2 py-1 text-slate-200 transition hover:bg-slate-800"
+                        onClick={() => handleCopyAnswer(entry)}
+                      >
+                        Copy answer
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
-    </aside>
+      </div>
+    </CollapsiblePanel>
   );
 }
