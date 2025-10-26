@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import logging
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from ..services.agent_context import build_agent_context
 from ..services.agent_service import (
     AgentPatchResult,
     AgentRateLimitError,
@@ -12,8 +15,11 @@ from ..services.agent_service import (
     get_agent_service,
 )
 from ..services.auth_service import AuthenticatedUser, ensure_session_owner, get_current_user
+from ..services.lab_catalog import LabCatalog, get_lab_catalog
 from ..services.runner_client import RunnerClient, get_runner_client
 from ..services.storage import Storage, get_storage
+
+logger = logging.getLogger("containrlab.agent.router")
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -55,21 +61,52 @@ class PatchApplyResponse(BaseModel):
     applied: list[str]
 
 
+async def _resolve_lab_and_context(
+    request: AgentRequest,
+    *,
+    storage: Storage,
+    runner: RunnerClient,
+    catalog: LabCatalog,
+) -> tuple[str | None, str | None]:
+    session = storage.get_session(request.session_id)
+    resolved_slug = request.lab_slug or (session.get("lab_slug") if session else None)
+    try:
+        resolved_slug, context_text = await build_agent_context(
+            session_id=request.session_id,
+            runner=runner,
+            lab_slug=resolved_slug,
+            catalog=catalog,
+        )
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Failed to assemble agent context: %s", exc)
+        context_text = None
+    return resolved_slug, context_text
+
+
 @router.post("/hint", response_model=AgentResponse)
 async def agent_hint(
     request: AgentRequest,
     agent: AgentService = Depends(get_agent_service),
     storage: Storage = Depends(get_storage),
+    runner: RunnerClient = Depends(get_runner_client),
+    catalog: LabCatalog = Depends(get_lab_catalog),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentResponse:
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     ensure_session_owner(storage, request.session_id, user)
+    lab_slug, context_text = await _resolve_lab_and_context(
+        request,
+        storage=storage,
+        runner=runner,
+        catalog=catalog,
+    )
     try:
         result = await agent.generate_hint(
             request.session_id,
             request.prompt,
-            lab_slug=request.lab_slug,
+            lab_slug=lab_slug,
+            context=context_text,
         )
     except AgentRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -88,16 +125,25 @@ async def agent_explain(
     request: AgentRequest,
     agent: AgentService = Depends(get_agent_service),
     storage: Storage = Depends(get_storage),
+    runner: RunnerClient = Depends(get_runner_client),
+    catalog: LabCatalog = Depends(get_lab_catalog),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> AgentResponse:
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     ensure_session_owner(storage, request.session_id, user)
+    lab_slug, context_text = await _resolve_lab_and_context(
+        request,
+        storage=storage,
+        runner=runner,
+        catalog=catalog,
+    )
     try:
         result = await agent.generate_explanation(
             request.session_id,
             request.prompt,
-            lab_slug=request.lab_slug,
+            lab_slug=lab_slug,
+            context=context_text,
         )
     except AgentRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
@@ -116,16 +162,25 @@ async def agent_patch(
     request: AgentRequest,
     agent: AgentService = Depends(get_agent_service),
     storage: Storage = Depends(get_storage),
+    runner: RunnerClient = Depends(get_runner_client),
+    catalog: LabCatalog = Depends(get_lab_catalog),
     user: AuthenticatedUser = Depends(get_current_user),
 ) -> PatchResponse:
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
     ensure_session_owner(storage, request.session_id, user)
+    lab_slug, context_text = await _resolve_lab_and_context(
+        request,
+        storage=storage,
+        runner=runner,
+        catalog=catalog,
+    )
     try:
-        result: AgentPatchResult = await agent.generate_patch(
+        result = await agent.generate_patch(
             request.session_id,
             request.prompt,
-            lab_slug=request.lab_slug,
+            lab_slug=lab_slug,
+            context=context_text,
         )
     except AgentRateLimitError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc

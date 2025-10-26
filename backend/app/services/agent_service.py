@@ -42,20 +42,21 @@ FALLBACK_PATCH = {
 
 HINT_TEMPLATE = (
     "You are ContainrLab's Docker tutor helping a learner who is working on the lab '{lab_slug}'. "
-    "Provide a concise hint that nudges them toward the next step without revealing the full solution. "
+    "{context_section}Provide a concise hint that nudges them toward the next step without revealing the full solution. "
     "Keep the tone encouraging, reference Docker best practices, and suggest one actionable idea.\n\n"
     "Learner request:\n{prompt}"
 )
 
 EXPLAIN_TEMPLATE = (
     "You are ContainrLab's Docker instructor. The learner has requested an explanation for lab '{lab_slug}'. "
-    "Offer a clear, beginner-friendly explanation of the core concepts they should understand next. "
+    "{context_section}Offer a clear, beginner-friendly explanation of the core concepts they should understand next. "
     "Summarise in a short paragraph (3-4 sentences) and highlight the most important takeaway.\n\n"
     "Learner request:\n{prompt}"
 )
 
 PATCH_TEMPLATE = Template(
     "You are ContainrLab's Docker assistant. The learner is working on lab '$lab_slug' and has asked for a patch.\n"
+    "${context_section}"
     "Review the prompt and return ONLY a JSON object (no Markdown, no prose outside JSON) with the following shape:\n\n"
     "{\n"
     '  "message": "<short summary of the changes>",\n'
@@ -174,7 +175,14 @@ class AgentService:
     def _default_client_factory(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=self._timeout_seconds)
 
-    async def generate_hint(self, session_id: str, prompt: str, *, lab_slug: str | None = None) -> AgentResult:
+    async def generate_hint(
+        self,
+        session_id: str,
+        prompt: str,
+        *,
+        lab_slug: str | None = None,
+        context: str | None = None,
+    ) -> AgentResult:
         return await self._generate(
             mode="hint",
             session_id=session_id,
@@ -182,9 +190,17 @@ class AgentService:
             lab_slug=lab_slug,
             template=HINT_TEMPLATE,
             fallback=FALLBACK_HINT,
+            context=context,
         )
 
-    async def generate_explanation(self, session_id: str, prompt: str, *, lab_slug: str | None = None) -> AgentResult:
+    async def generate_explanation(
+        self,
+        session_id: str,
+        prompt: str,
+        *,
+        lab_slug: str | None = None,
+        context: str | None = None,
+    ) -> AgentResult:
         return await self._generate(
             mode="explain",
             session_id=session_id,
@@ -192,9 +208,17 @@ class AgentService:
             lab_slug=lab_slug,
             template=EXPLAIN_TEMPLATE,
             fallback=FALLBACK_EXPLANATION,
+            context=context,
         )
 
-    async def generate_patch(self, session_id: str, prompt: str, *, lab_slug: str | None = None) -> AgentPatchResult:
+    async def generate_patch(
+        self,
+        session_id: str,
+        prompt: str,
+        *,
+        lab_slug: str | None = None,
+        context: str | None = None,
+    ) -> AgentPatchResult:
         cleaned_prompt = prompt.strip()
         if not cleaned_prompt:
             raise ValueError("Prompt cannot be empty")
@@ -217,11 +241,21 @@ class AgentService:
             _log(logging.INFO, "Gemini rate limit hit", metadata, event="rate_limit")
             raise AgentRateLimitError("Too many agent requests. Please try again shortly.")
 
+        context_section = _context_section(context)
+
         request_body = {
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": PATCH_TEMPLATE.substitute(lab_slug=slug, prompt=cleaned_prompt)}],
+                    "parts": [
+                        {
+                            "text": PATCH_TEMPLATE.substitute(
+                                lab_slug=slug,
+                                prompt=cleaned_prompt,
+                                context_section=context_section,
+                            )
+                        }
+                    ],
                 }
             ],
             "generationConfig": {
@@ -282,6 +316,7 @@ class AgentService:
         lab_slug: str | None,
         template: str,
         fallback: str,
+        context: str | None,
     ) -> AgentResult:
         cleaned_prompt = prompt.strip()
         slug = lab_slug or "general"
@@ -305,11 +340,20 @@ class AgentService:
             _log(logging.INFO, "Gemini rate limit hit", metadata, event="rate_limit")
             raise AgentRateLimitError("Too many agent requests. Please try again shortly.")
 
+        context_section = _context_section(context)
         request_body = {
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": template.format(lab_slug=slug, prompt=cleaned_prompt)}],
+                    "parts": [
+                        {
+                            "text": template.format(
+                                lab_slug=slug,
+                                prompt=cleaned_prompt,
+                                context_section=context_section,
+                            )
+                        }
+                    ],
                 }
             ],
             "generationConfig": {
@@ -448,6 +492,12 @@ class AgentService:
             files=files,
             source="fallback",
         )
+
+
+def _context_section(context: str | None) -> str:
+    if not context:
+        return ""
+    return "Context for this request:\n" + context.strip() + "\n\n"
 
 
 def get_agent_service() -> AgentService:

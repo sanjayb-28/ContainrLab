@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from backend.app.services.agent_service import (
 from backend.app.services.auth_service import hash_token
 from backend.app.services.storage import Storage, get_storage
 from backend.app.services.runner_client import get_runner_client
+from backend.app.services.lab_catalog import LabDetail, get_lab_catalog
 
 
 def _prepare_storage(tmp_path: Path, session_id: str) -> dict[str, str]:
@@ -42,9 +44,9 @@ client = TestClient(app)
 
 class FakeAgent:
     def __init__(self) -> None:
-        self.hint_calls: list[tuple[str, str]] = []
-        self.explain_calls: list[tuple[str, str]] = []
-        self.patch_calls: list[tuple[str, str]] = []
+        self.hint_calls: list[dict[str, str | None]] = []
+        self.explain_calls: list[dict[str, str | None]] = []
+        self.patch_calls: list[dict[str, str | None]] = []
 
     async def generate_hint(
         self,
@@ -52,8 +54,9 @@ class FakeAgent:
         prompt: str,
         *,
         lab_slug: str | None = None,
+        context: str | None = None,
     ) -> AgentResult:
-        self.hint_calls.append((session_id, prompt))
+        self.hint_calls.append({"session_id": session_id, "prompt": prompt, "context": context})
         return AgentResult(answer="Hint from fake agent", source="gemini")
 
     async def generate_explanation(
@@ -62,8 +65,9 @@ class FakeAgent:
         prompt: str,
         *,
         lab_slug: str | None = None,
+        context: str | None = None,
     ) -> AgentResult:
-        self.explain_calls.append((session_id, prompt))
+        self.explain_calls.append({"session_id": session_id, "prompt": prompt, "context": context})
         raise AgentRateLimitError("Too many agent requests. Please try again shortly.")
 
     async def generate_patch(
@@ -72,8 +76,9 @@ class FakeAgent:
         prompt: str,
         *,
         lab_slug: str | None = None,
+        context: str | None = None,
     ) -> AgentPatchResult:
-        self.patch_calls.append((session_id, prompt))
+        self.patch_calls.append({"session_id": session_id, "prompt": prompt, "context": context})
         return AgentPatchResult(
             message="Update Dockerfile install order",
             files=[
@@ -91,9 +96,54 @@ def override_agent_service() -> FakeAgent:
     return FakeAgent()
 
 
+class FakeCatalog:
+    def get(self, slug: str) -> LabDetail:
+        return LabDetail(
+            slug=slug,
+            title=f"Lab {slug}",
+            summary="Practice container fundamentals.",
+            has_starter=True,
+            description="Test lab description",
+            solution="FROM python:3.11-slim\nWORKDIR /app",
+        )
+
+
+class StubRunner:
+    async def list_path(self, session_id: str, path: str | None = None) -> dict[str, object]:
+        return {
+            "exists": True,
+            "is_dir": True,
+            "entries": [
+                {
+                    "name": "Dockerfile",
+                    "path": "/workspace/Dockerfile",
+                    "is_dir": False,
+                    "size": 120,
+                },
+                {
+                    "name": "app.py",
+                    "path": "/workspace/app.py",
+                    "is_dir": False,
+                    "size": 220,
+                },
+            ],
+        }
+
+    async def read_file(self, session_id: str, path: str) -> dict[str, str]:
+        content = "FROM base\nRUN echo test\n" if path.endswith("Dockerfile") else "print('hello world')\n"
+        payload = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        return {"path": path, "encoding": "base64", "content": payload}
+
+
+def _install_context_overrides() -> None:
+    app.dependency_overrides[get_runner_client] = lambda: StubRunner()
+    app.dependency_overrides[get_lab_catalog] = lambda: FakeCatalog()
+
+
 def test_hint_endpoint_returns_stub(tmp_path: Path) -> None:
     fake = FakeAgent()
     app.dependency_overrides[get_agent_service] = lambda: fake
+    _install_context_overrides()
     headers = _prepare_storage(tmp_path, "abc")
     response = client.post(
         "/agent/hint",
@@ -105,11 +155,14 @@ def test_hint_endpoint_returns_stub(tmp_path: Path) -> None:
     assert payload["answer"] == "Hint from fake agent"
     assert payload["session_id"] == "abc"
     assert payload["source"] == "gemini"
-    assert fake.hint_calls == [("abc", "Need a hint")]
+    assert fake.hint_calls[0]["session_id"] == "abc"
+    assert fake.hint_calls[0]["prompt"] == "Need a hint"
+    assert fake.hint_calls[0]["context"]
     app.dependency_overrides.clear()
 
 
 def test_explain_endpoint_rejects_empty_prompt(tmp_path: Path) -> None:
+    _install_context_overrides()
     headers = _prepare_storage(tmp_path, "abc")
     response = client.post(
         "/agent/explain",
@@ -122,6 +175,7 @@ def test_explain_endpoint_rejects_empty_prompt(tmp_path: Path) -> None:
 def test_explain_endpoint_returns_rate_limit_error(tmp_path: Path) -> None:
     fake = FakeAgent()
     app.dependency_overrides[get_agent_service] = lambda: fake
+    _install_context_overrides()
     headers = _prepare_storage(tmp_path, "abc")
 
     response = client.post(
@@ -131,7 +185,9 @@ def test_explain_endpoint_returns_rate_limit_error(tmp_path: Path) -> None:
     )
     assert response.status_code == 429
     assert "Too many agent requests" in response.json()["detail"]
-    assert fake.explain_calls == [("abc", "Explain please")]
+    assert fake.explain_calls[0]["session_id"] == "abc"
+    assert fake.explain_calls[0]["prompt"] == "Explain please"
+    assert fake.explain_calls[0]["context"]
 
     app.dependency_overrides.clear()
 
@@ -139,6 +195,7 @@ def test_explain_endpoint_returns_rate_limit_error(tmp_path: Path) -> None:
 def test_patch_endpoint_returns_files(tmp_path: Path) -> None:
     fake = FakeAgent()
     app.dependency_overrides[get_agent_service] = lambda: fake
+    _install_context_overrides()
     headers = _prepare_storage(tmp_path, "session-patch")
 
     response = client.post(
@@ -150,7 +207,9 @@ def test_patch_endpoint_returns_files(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["message"] == "Update Dockerfile install order"
     assert payload["files"][0]["path"] == "/workspace/Dockerfile"
-    assert fake.patch_calls == [("session-patch", "Fix Dockerfile")]
+    assert fake.patch_calls[0]["session_id"] == "session-patch"
+    assert fake.patch_calls[0]["prompt"] == "Fix Dockerfile"
+    assert fake.patch_calls[0]["context"]
     app.dependency_overrides.clear()
 
 
