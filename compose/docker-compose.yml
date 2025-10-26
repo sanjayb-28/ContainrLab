@@ -5,6 +5,10 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
       API_INTERNAL_BASE: ${API_INTERNAL_BASE:-http://api:8000}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-prod}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
     ports:
       - "3000:3000"  # expose locally while nginx is not fronting the stack
     depends_on:

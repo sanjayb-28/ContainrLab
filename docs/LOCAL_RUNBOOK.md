@@ -23,39 +23,51 @@ This guide walks through standing up the full ContainrLab stack on a single deve
    - Without a key the agent will fall back to deterministic stub responses. The UI will still function, including patch suggestions, thanks to the built-in fallback.
    - The stack now targets `models/gemini-flash-latest` by default. If your API key does not have access to that model, override it by setting `GEMINI_MODEL` before running `docker compose up`.
 
-3. **Bring the stack online**
+3. **Configure GitHub OAuth credentials for the frontend**
+   - Copy `frontend/.env.local.example` to `frontend/.env.local` and fill in the following keys:
+     ```bash
+     GITHUB_CLIENT_ID=<GitHub OAuth client ID>
+     GITHUB_CLIENT_SECRET=<GitHub OAuth client secret>
+     NEXTAUTH_SECRET=<any random 32+ character string>
+     NEXTAUTH_URL=http://localhost:3000
+     ```
+   - These values are required for the “Continue with GitHub” login button to work locally. The `NEXTAUTH_SECRET` can be generated with `openssl rand -hex 32`.
+   - When running via Docker Compose, export the same variables in your shell **before** `docker compose up` (or create a `compose/.env` file) so the `web` container receives them.
+
+4. **Bring the stack online**
    ```bash
    cd compose
    docker compose up --build
    ```
    The first build can take several minutes while Docker images are created. Subsequent runs are much faster.
 
-4. **Wait for services to report healthy**
+5. **Wait for services to report healthy**
    - API: `http://localhost:8000/healthz`
    - Runnerd: `http://localhost:8080/healthz`
    - Frontend: http://localhost:3000
 
 ## Authentication Flow
 
-ContainrLab uses a lightweight token-based login during the MVP phase:
+ContainrLab now relies on GitHub OAuth through NextAuth:
 
-1. Open http://localhost:3000 in a browser.
-2. Enter your email in the “Sign in to start labs” box (any address is accepted locally).
-3. The frontend calls `POST /auth/login`. The API returns a JSON payload containing `token`. The UI automatically stores it in `localStorage` and attaches it to subsequent requests.
-4. The signed-in banner shows your user ID. You can sign out via the “Log out” button, which simply removes the token from storage.
+1. Visit http://localhost:3000 and click **Continue with GitHub**.
+2. Authorise the GitHub application you created earlier. GitHub redirects you back to ContainrLab.
+3. On return, the frontend exchanges your GitHub email for a ContainrLab API token via the `/auth/login` endpoint and stores it in the NextAuth session.
+4. The signed-in banner shows your ContainrLab user ID. Choose **Log out** to end the session (which clears the NextAuth cookie).
 
-If you prefer the CLI, you can call:
+### CLI and automation access
+
+The `/auth/login` endpoint remains available for scripts. Obtain a token and use it in the `Authorization` header:
 
 ```bash
 curl -s -X POST http://localhost:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"dev@example.com"}'
+  -d '{"email":"dev@example.com"}' \
+  | jq -r '.token'
 ```
 
-Then export the token for subsequent API calls:
-
 ```bash
-export CONTAINRLAB_TOKEN="<token from login response>"
+export CONTAINRLAB_TOKEN="<token>"
 curl -H "Authorization: Bearer $CONTAINRLAB_TOKEN" http://localhost:8000/labs
 ```
 
@@ -88,7 +100,7 @@ The script exits with a non-zero status if any step fails, making it safe to int
 
 ## Manual Verification Checklist
 
-- [ ] Login succeeds and the token banner appears.
+- [ ] GitHub login succeeds and the signed-in banner appears.
 - [ ] Starting a lab session creates a new workspace and opens the terminal/editor/inspector panes.
 - [ ] File edits autosave and can trigger a build-on-save if enabled.
 - [ ] Agent hints/explanations respond with either Gemini output or the deterministic fallback.
@@ -103,6 +115,7 @@ The script exits with a non-zero status if any step fails, making it safe to int
 | `401 Unauthorized` from API | Missing/expired bearer token | Re-login or export the token via `curl`. |
 | Agent requests always return stub responses | Missing `GEMINI_API_KEY` | Follow [`docs/GEMINI_SETUP.md`](./GEMINI_SETUP.md). |
 | Labs page reports “Unable to reach the ContainrLab API” or logs JSON parse errors | `NEXT_PUBLIC_API_BASE` pointing at a non-local host or the API container is down | Ensure the API container is healthy and rebuild the stack; override `NEXT_PUBLIC_API_BASE` if you need a different host. |
+| GitHub login redirects back with an error | Missing/incorrect `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, or callback URL | Double-check the OAuth app configuration and the values in `frontend/.env.local`. |
 | Browser console shows `CORS error` for `/auth/login` | Compose stack missing updated API image with CORS support | Rebuild the API container (`docker compose build api && docker compose up`) or set `CORS_ALLOW_ORIGINS` to include your frontend origin. |
 | `Failed to persist user ... token_hash` during login | Old SQLite schema missing new auth columns | Rebuild/restart the API container so it applies the automatic column backfill; if the error persists, remove `sqlite/app.db` (it will be recreated on startup). |
 | Docker builds fail inside runner | Outdated lab solution or missing dependencies | Apply the agent patch or edit the Dockerfile manually, then rerun the judge. |

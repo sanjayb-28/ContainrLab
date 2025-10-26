@@ -5,14 +5,24 @@ export type AuthUser = {
   email: string;
   created_at: string;
   last_login_at: string;
+  name?: string;
+  avatar_url?: string;
 };
 
 export type LoginResponse = AuthUser & {
   token: string;
 };
 
-export async function requestLogin(email: string): Promise<LoginResponse> {
-  const payload = await apiPost<LoginResponse>("/auth/login", { email });
+export type OAuthLoginRequest = {
+  provider: "github";
+  provider_account_id: string;
+  email: string;
+  name?: string | null;
+  avatar_url?: string | null;
+};
+
+export async function exchangeOAuthLogin(request: OAuthLoginRequest): Promise<LoginResponse> {
+  const payload = await apiPost<LoginResponse>(`/auth/oauth/${request.provider}`, request);
   return payload;
 }
 

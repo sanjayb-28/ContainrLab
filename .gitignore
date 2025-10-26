@@ -9,6 +9,7 @@ yarn-error.log
 npm-debug.log
 package-lock.json
 pnpm-lock.yaml
+.env.local
 
 # Python
 __pycache__/
