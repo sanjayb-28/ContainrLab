@@ -1,9 +1,21 @@
-# Starter Workspace
+# Lab 1 Starter Workspace
 
-This directory is mounted into your runner container as `/workspace`. To pass Lab 1 you must:
+This workspace is intentionally empty. You will create all required files from scratch.
 
-- Add `app.py` that serves `GET /health` and returns HTTP 200.<br />
-  _Tip: the FastAPI snippet in `../README.md` is a good starting point._
+## Files to Create
+
+For Lab 1, you need to create:
+- `Dockerfile` - Container definition
+- `app.py` - Python web service with `/health` endpoint
+- `requirements.txt` - Python dependencies
+- `.dockerignore` - Build context optimization
+
+## Getting Started
+
+When you start a lab session, this workspace is copied to `/workspace` in your isolated container.
+
+**See:** [Lab 1 Description](../description.md) for detailed requirements.
+
 - List the app’s dependencies in `requirements.txt`.
 - Create `.dockerignore` and exclude `venv/`, `node_modules/`, build outputs, etc., so Docker only uploads what it needs.
 - Write a Dockerfile that:
