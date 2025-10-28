@@ -349,7 +349,8 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         # Send keepalive ping every 30 seconds to prevent ALB timeout
                         if time.time() - last_ping > 30:
                             try:
-                                await websocket.send_json({"type": "ping"})
+                                # Send WebSocket ping frame (not visible in terminal)
+                                await websocket.send_bytes(b"")
                                 last_ping = time.time()
                             except Exception:
                                 break
