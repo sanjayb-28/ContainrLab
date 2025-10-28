@@ -29,13 +29,7 @@ ALLOW_ORIGINS = sorted(DEFAULT_CORS_ORIGINS | extra_origins)
 logger = logging.getLogger("containrlab.session_cleanup")
 _cleanup_task: asyncio.Task[None] | None = None
 
-app.include_router(labs.router)
-app.include_router(sessions.router)
-app.include_router(files.router)
-app.include_router(terminal.router)
-app.include_router(agent.router)
-app.include_router(auth.router)
-
+# CORS middleware must be added BEFORE routers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOW_ORIGINS or ["*"],
@@ -43,6 +37,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(labs.router)
+app.include_router(sessions.router)
+app.include_router(files.router)
+app.include_router(terminal.router)
+app.include_router(agent.router)
+app.include_router(auth.router)
 
 
 @app.get("/healthz")
