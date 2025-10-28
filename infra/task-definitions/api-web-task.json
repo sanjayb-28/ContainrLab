@@ -1,0 +1,132 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "web",
+      "image": "143353052888.dkr.ecr.us-east-1.amazonaws.com/containrlab-web:latest",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp",
+          "name": "web-3000-tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true,
+      "environment": [],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "API_INTERNAL_BASE",
+          "valueFrom": "/containrlab/API_INTERNAL_BASE"
+        },
+        {
+          "name": "GITHUB_CLIENT_ID",
+          "valueFrom": "/containrlab/GITHUB_CLIENT_ID"
+        },
+        {
+          "name": "GITHUB_CLIENT_SECRET",
+          "valueFrom": "/containrlab/GITHUB_CLIENT_SECRET"
+        },
+        {
+          "name": "NEXTAUTH_SECRET",
+          "valueFrom": "/containrlab/NEXTAUTH_SECRET"
+        },
+        {
+          "name": "NEXTAUTH_URL",
+          "valueFrom": "/containrlab/NEXTAUTH_URL"
+        },
+        {
+          "name": "NEXT_PUBLIC_API_BASE",
+          "valueFrom": "/containrlab/NEXT_PUBLIC_API_BASE"
+        }
+      ],
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/containrlab",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "web"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    },
+    {
+      "name": "api",
+      "image": "143353052888.dkr.ecr.us-east-1.amazonaws.com/containrlab-api:latest",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp",
+          "name": "api-8000-tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "REDIS_URL",
+          "value": "redis://localhost:6379/0"
+        }
+      ],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "GEMINI_API_KEY",
+          "valueFrom": "/containrlab/GEMINI_API_KEY"
+        },
+        {
+          "name": "GITHUB_CLIENT_ID",
+          "valueFrom": "/containrlab/GITHUB_CLIENT_ID"
+        },
+        {
+          "name": "GITHUB_CLIENT_SECRET",
+          "valueFrom": "/containrlab/GITHUB_CLIENT_SECRET"
+        },
+        {
+          "name": "RUNNERD_BASE_URL",
+          "valueFrom": "/containrlab/RUNNERD_BASE_URL"
+        },
+        {
+          "name": "CORS_ALLOW_ORIGINS",
+          "valueFrom": "arn:aws:ssm:us-east-1:143353052888:parameter/containrlab/CORS_ALLOW_ORIGINS"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/containrlab",
+          "awslogs-create-group": "true",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "api"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "containrlab-task",
+  "executionRoleArn": "arn:aws:iam::143353052888:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "placementConstraints": [],
+  "runtimePlatform": {
+    "cpuArchitecture": "ARM64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "3072",
+  "enableFaultInjection": false
+}

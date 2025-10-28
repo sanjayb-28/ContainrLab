@@ -1,0 +1,34 @@
+{
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:143353052888:targetgroup/containrlab-runner-tg-instance/bf25f0e110b76891",
+      "containerName": "runnerd",
+      "containerPort": 8080
+    }
+  ],
+  "serviceRegistries": [],
+  "desiredCount": 1,
+  "launchType": "EC2",
+  "taskDefinition": "arn:aws:ecs:us-east-1:143353052888:task-definition/containrlab-runner:9",
+  "deploymentConfiguration": {
+    "deploymentCircuitBreaker": {
+      "enable": false,
+      "rollback": false
+    },
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100,
+    "strategy": "ROLLING",
+    "bakeTimeInMinutes": 0
+  },
+  "placementConstraints": [],
+  "placementStrategy": [],
+  "healthCheckGracePeriodSeconds": 60,
+  "schedulingStrategy": "REPLICA",
+  "deploymentController": {
+    "type": "ECS"
+  },
+  "enableECSManagedTags": false,
+  "propagateTags": "NONE",
+  "enableExecuteCommand": false,
+  "availabilityZoneRebalancing": "ENABLED"
+}

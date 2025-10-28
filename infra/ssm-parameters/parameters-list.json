@@ -1,0 +1,62 @@
+[
+    {
+        "Name": "/containrlab/API_INTERNAL_BASE",
+        "Type": "SecureString",
+        "LastModified": "2025-10-26T05:14:22.131000-06:00"
+    },
+    {
+        "Name": "/containrlab/GEMINI_API_KEY",
+        "Type": "SecureString",
+        "LastModified": "2025-10-25T23:40:18.167000-06:00"
+    },
+    {
+        "Name": "/containrlab/GITHUB_CLIENT_ID",
+        "Type": "SecureString",
+        "LastModified": "2025-10-26T02:22:09.498000-06:00"
+    },
+    {
+        "Name": "/containrlab/GITHUB_CLIENT_SECRET",
+        "Type": "SecureString",
+        "LastModified": "2025-10-25T23:44:02.624000-06:00"
+    },
+    {
+        "Name": "/containrlab/NEXTAUTH_SECRET",
+        "Type": "SecureString",
+        "LastModified": "2025-10-27T19:49:21.556000-06:00"
+    },
+    {
+        "Name": "/containrlab/NEXTAUTH_URL",
+        "Type": "SecureString",
+        "LastModified": "2025-10-26T03:42:30.392000-06:00"
+    },
+    {
+        "Name": "/containrlab/NEXT_PUBLIC_API_BASE",
+        "Type": "SecureString",
+        "LastModified": "2025-10-26T17:03:02.105000-06:00"
+    },
+    {
+        "Name": "/containrlab/REDIS_URL",
+        "Type": "SecureString",
+        "LastModified": "2025-10-26T00:12:43.668000-06:00"
+    },
+    {
+        "Name": "/containrlab/RUNNERD_BASE_URL",
+        "Type": "String",
+        "LastModified": "2025-10-27T14:22:53.573000-06:00"
+    },
+    {
+        "Name": "/containrlab/RUNNER_IMAGE",
+        "Type": "String",
+        "LastModified": "2025-10-27T13:52:33.936000-06:00"
+    },
+    {
+        "Name": "/containrlab/CORS_ALLOW_ORIGINS",
+        "Type": "String",
+        "LastModified": "2025-10-27T15:25:05.165000-06:00"
+    },
+    {
+        "Name": "/containrlab/SESSION_TTL_SECONDS",
+        "Type": "String",
+        "LastModified": "2025-10-27T20:49:14.189000-06:00"
+    }
+]

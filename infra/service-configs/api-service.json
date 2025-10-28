@@ -1,0 +1,59 @@
+{
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:143353052888:targetgroup/containrlab-web-tg/1f099243cc4752e8",
+      "containerName": "web",
+      "containerPort": 3000
+    },
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:143353052888:targetgroup/containrlab-api-tg/d0e450d8db2ae5f1",
+      "containerName": "api",
+      "containerPort": 8000
+    }
+  ],
+  "serviceRegistries": [],
+  "desiredCount": 1,
+  "capacityProviderStrategy": [
+    {
+      "capacityProvider": "FARGATE",
+      "weight": 1,
+      "base": 0
+    }
+  ],
+  "platformVersion": "1.4.0",
+  "platformFamily": "Linux",
+  "taskDefinition": "arn:aws:ecs:us-east-1:143353052888:task-definition/containrlab-task:26",
+  "deploymentConfiguration": {
+    "deploymentCircuitBreaker": {
+      "enable": false,
+      "rollback": false
+    },
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 0,
+    "strategy": "ROLLING",
+    "bakeTimeInMinutes": 0
+  },
+  "placementConstraints": [],
+  "placementStrategy": [],
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-0d0aa461090297627",
+        "subnet-0c18afe8aa6849d67"
+      ],
+      "securityGroups": [
+        "sg-0a5941aff25f12de2"
+      ],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "healthCheckGracePeriodSeconds": 0,
+  "schedulingStrategy": "REPLICA",
+  "deploymentController": {
+    "type": "ECS"
+  },
+  "enableECSManagedTags": true,
+  "propagateTags": "NONE",
+  "enableExecuteCommand": false,
+  "availabilityZoneRebalancing": "ENABLED"
+}

@@ -1,0 +1,73 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "runnerd",
+      "image": "143353052888.dkr.ecr.us-east-1.amazonaws.com/containrlab-runnerd:20251027-184751",
+      "cpu": 1024,
+      "memory": 2048,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "RUNNER_MEMORY",
+          "value": "1536m"
+        },
+        {
+          "name": "LABS_ROOT",
+          "value": "/labs"
+        },
+        {
+          "name": "RUNNER_NANO_CPUS",
+          "value": "1000000000"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "dockersock",
+          "containerPath": "/var/run/docker.sock",
+          "readOnly": false
+        }
+      ],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "RUNNER_IMAGE",
+          "valueFrom": "arn:aws:ssm:us-east-1:143353052888:parameter/containrlab/RUNNER_IMAGE"
+        }
+      ],
+      "privileged": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/containrlab",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "runnerd"
+        }
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "containrlab-runner",
+  "executionRoleArn": "arn:aws:iam::143353052888:role/ecsTaskExecutionRole",
+  "networkMode": "bridge",
+  "volumes": [
+    {
+      "name": "dockersock",
+      "host": {
+        "sourcePath": "/var/run/docker.sock"
+      }
+    }
+  ],
+  "placementConstraints": [],
+  "requiresCompatibilities": [
+    "EC2"
+  ],
+  "cpu": "1024",
+  "memory": "2048"
+}
