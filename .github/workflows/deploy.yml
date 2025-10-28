@@ -32,28 +32,28 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      # Build and push API image (ARM64 for Fargate)
+      # Build and push API image (AMD64 for Fargate)
       - name: Build and push API image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./backend/Dockerfile
           push: true
-          platforms: linux/arm64
+          platforms: linux/amd64
           tags: |
             ${{ env.ECR_REGISTRY }}/containrlab-api:latest
             ${{ env.ECR_REGISTRY }}/containrlab-api:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
-      # Build and push Web image (ARM64 for Fargate)
+      # Build and push Web image (AMD64 for Fargate)
       - name: Build and push Web image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          platforms: linux/arm64
+          platforms: linux/amd64
           build-args: |
             NEXT_PUBLIC_API_BASE=https://api.containrlab.click
           tags: |
