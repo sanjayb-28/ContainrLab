@@ -2,7 +2,7 @@
   "containerDefinitions": [
     {
       "name": "runnerd",
-      "image": "143353052888.dkr.ecr.us-east-1.amazonaws.com/containrlab-runnerd:20251027-184751",
+      "image": "143353052888.dkr.ecr.us-east-1.amazonaws.com/containrlab-runnerd:latest",
       "cpu": 1024,
       "memory": 2048,
       "portMappings": [

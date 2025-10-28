@@ -90,12 +90,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
-      # Register updated task definition
+      # Register updated task definitions
       - name: Register API/Web task definition
         run: |
-          echo "Registering updated task definition..."
+          echo "Registering API/Web task definition..."
           aws ecs register-task-definition \
             --cli-input-json file://infra/task-definitions/api-web-task.json \
+            --region ${{ env.AWS_REGION }}
+      
+      - name: Register Runner task definition
+        run: |
+          echo "Registering Runner task definition..."
+          aws ecs register-task-definition \
+            --cli-input-json file://infra/task-definitions/runner-task.json \
             --region ${{ env.AWS_REGION }}
       
       # Deploy API/Web Service
