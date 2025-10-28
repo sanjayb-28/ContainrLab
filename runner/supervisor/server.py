@@ -390,6 +390,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         data = payload.get("data", "")
                         if isinstance(data, str) and data:
                             await loop.run_in_executor(None, raw_sock.sendall, data.encode("utf-8"))
+                    elif msg_type == "pong":
+                        # Ignore pong responses to our ping keepalives
+                        continue
                     elif msg_type == "resize":
                         cols = payload.get("cols")
                         rows = payload.get("rows")
