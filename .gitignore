@@ -36,3 +36,4 @@ coverage/
 *.swp
 docs/plan.txt
 docs/roadmap.txt
+.aws-credentials-for-github.txt

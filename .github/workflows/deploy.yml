@@ -1,0 +1,159 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 143353052888.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # Build and push API image (ARM64 for Fargate)
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/containrlab-api:latest
+            ${{ env.ECR_REGISTRY }}/containrlab-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Build and push Web image (ARM64 for Fargate)
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          platforms: linux/arm64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/containrlab-web:latest
+            ${{ env.ECR_REGISTRY }}/containrlab-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Build and push Runner image (AMD64 for EC2)
+      - name: Build and push Runner image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./runner
+          file: ./runner/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/containrlab-runner:latest
+            ${{ env.ECR_REGISTRY }}/containrlab-runner:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Build and push RunnerD image (AMD64 for EC2)
+      - name: Build and push RunnerD image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./runner/supervisor
+          file: ./runner/supervisor/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.ECR_REGISTRY }}/containrlab-runnerd:latest
+            ${{ env.ECR_REGISTRY }}/containrlab-runnerd:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Deploy API/Web Service
+      - name: Deploy API/Web to ECS
+        run: |
+          echo "Forcing new deployment for API/Web service..."
+          aws ecs update-service \
+            --cluster containrlab-cluster \
+            --service containrlab-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+      
+      # Deploy Runner Service
+      - name: Deploy Runner to ECS
+        run: |
+          echo "Forcing new deployment for Runner service..."
+          aws ecs update-service \
+            --cluster containrlab-runner-ec2 \
+            --service containrlab-runner-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+      
+      # Wait for services to stabilize
+      - name: Wait for API/Web deployment
+        run: |
+          echo "Waiting for API/Web service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster containrlab-cluster \
+            --services containrlab-service \
+            --region ${{ env.AWS_REGION }}
+      
+      - name: Wait for Runner deployment
+        run: |
+          echo "Waiting for Runner service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster containrlab-runner-ec2 \
+            --services containrlab-runner-service \
+            --region ${{ env.AWS_REGION }}
+      
+      # Verify deployment
+      - name: Verify deployment
+        run: |
+          echo "Checking service health..."
+          
+          # Check API health
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.containrlab.click/healthz)
+          if [ "$API_STATUS" = "200" ]; then
+            echo "✅ API is healthy (HTTP $API_STATUS)"
+          else
+            echo "❌ API health check failed (HTTP $API_STATUS)"
+            exit 1
+          fi
+          
+          # Check Web
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://app.containrlab.click)
+          if [ "$WEB_STATUS" = "200" ]; then
+            echo "✅ Web is healthy (HTTP $WEB_STATUS)"
+          else
+            echo "❌ Web health check failed (HTTP $WEB_STATUS)"
+            exit 1
+          fi
+          
+          echo "🎉 Deployment successful!"
+      
+      # Notify on failure
+      - name: Deployment failed
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check the logs above for details."
+          echo "Services may be in a partial deployment state."
