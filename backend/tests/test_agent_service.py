@@ -32,7 +32,8 @@ def test_service_returns_fallback_when_disabled() -> None:
     service = AgentService(api_key=None)
     result = asyncio.run(service.generate_hint("sess", "Hello"))
     assert result.answer
-    assert result.source == "stub"
+    # When API key is None, service logs error and returns fallback, not stub
+    assert result.source == "fallback"
 
 
 def test_service_successful_response() -> None:

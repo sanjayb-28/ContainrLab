@@ -40,8 +40,8 @@ jobs:
         env:
           GITHUB_CLIENT_ID: test-client-id
           GITHUB_CLIENT_SECRET: test-client-secret
-          GEMINI_API_KEY: test-api-key
           RUNNERD_BASE_URL: http://localhost:8080
+          # Note: GEMINI_API_KEY intentionally not set - tests verify behavior when disabled
       
       - name: Check code formatting
         run: |
