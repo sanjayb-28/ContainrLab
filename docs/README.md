@@ -32,6 +32,8 @@ New to ContainrLab? Start here:
 | [💻 Local Development Runbook](LOCAL_RUNBOOK.md) | Complete local setup with Docker Compose |
 | [🚀 AWS Deployment Guide](DEPLOYMENTS.md) | Deploy to production on AWS ECS |
 | [🔐 CI/CD Setup](CI-CD-SETUP.md) | Configure GitHub Actions for automated deployment |
+| [☁️ AWS Resources](AWS_RESOURCES.md) | Complete AWS resource inventory |
+| [💰 Cost Optimization](COST_OPTIMIZATION.md) | Cost analysis and optimization details |
 
 ### Component Documentation
 
@@ -223,6 +225,8 @@ See [Contributing Guidelines](../CONTRIBUTING.md) *(coming soon)*.
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
 - [LOCAL_RUNBOOK.md](LOCAL_RUNBOOK.md) - Local development guide
 - [DEPLOYMENTS.md](DEPLOYMENTS.md) - AWS deployment guide
+- [AWS_RESOURCES.md](AWS_RESOURCES.md) - AWS resource inventory
+- [COST_OPTIMIZATION.md](COST_OPTIMIZATION.md) - Cost analysis
 - [CI-CD-SETUP.md](CI-CD-SETUP.md) - CI/CD configuration
 
 ### Component Documentation
