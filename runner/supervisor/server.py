@@ -334,20 +334,31 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
         )
         sock = stream
         raw_sock = getattr(sock, "_sock", sock)
+        # Set socket timeout to prevent blocking recv calls
+        raw_sock.settimeout(5.0)
         loop = asyncio.get_event_loop()
         stop_event = asyncio.Event()
 
         async def pump_container_to_client() -> None:
             try:
+                last_ping = time.time()
                 while not stop_event.is_set():
                     try:
                         data = await loop.run_in_executor(None, raw_sock.recv, 4096)
-                    except TimeoutError:
+                    except (TimeoutError, OSError):
+                        # Send keepalive ping every 30 seconds to prevent ALB timeout
+                        if time.time() - last_ping > 30:
+                            try:
+                                await websocket.send_json({"type": "ping"})
+                                last_ping = time.time()
+                            except Exception:
+                                break
                         continue
                     if not data:
                         logger.debug("terminal socket closed session=%s", session_id)
                         break
                     await websocket.send_text(data.decode("utf-8", errors="ignore"))
+                    last_ping = time.time()  # Reset ping timer on activity
             except Exception as exc:
                 logger.exception("container->client error %s", session_id, exc_info=exc)
             finally:
@@ -366,6 +377,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         break
                     try:
                         payload = json.loads(message)
+                        # Ensure payload is a dict (json.loads can return int/str/list)
+                        if not isinstance(payload, dict):
+                            payload = {"type": "input", "data": message}
                     except json.JSONDecodeError:
                         payload = {"type": "input", "data": message}
 
@@ -375,6 +389,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str, shell: str =
                         data = payload.get("data", "")
                         if isinstance(data, str) and data:
                             await loop.run_in_executor(None, raw_sock.sendall, data.encode("utf-8"))
+                    elif msg_type == "pong":
+                        # Ignore pong responses to our ping keepalives
+                        continue
                     elif msg_type == "resize":
                         cols = payload.get("cols")
                         rows = payload.get("rows")
