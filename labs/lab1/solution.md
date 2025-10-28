@@ -46,7 +46,6 @@ uvicorn==0.31.0
 __pycache__/
 *.pyc
 venv/
-node_modules/
 .env
 .git/
 ```

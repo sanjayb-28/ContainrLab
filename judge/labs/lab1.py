@@ -7,7 +7,7 @@ import httpx  # type: ignore[import]
 
 from judge.models import JudgeResult
 
-REQUIRED_DOCKERIGNORE_PATTERNS = ("node_modules", "venv")
+REQUIRED_DOCKERIGNORE_PATTERNS = ("__pycache__", "venv")
 DEFAULT_PORT = 8080
 HEALTH_PATH = "/health"
 
