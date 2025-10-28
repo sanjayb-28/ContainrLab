@@ -37,6 +37,11 @@ jobs:
         run: |
           cd backend
           pytest tests/ -v --tb=short
+        env:
+          GITHUB_CLIENT_ID: test-client-id
+          GITHUB_CLIENT_SECRET: test-client-secret
+          GEMINI_API_KEY: test-api-key
+          RUNNERD_BASE_URL: http://localhost:8080
       
       - name: Check code formatting
         run: |
@@ -71,6 +76,11 @@ jobs:
           npm run build
         env:
           SKIP_ENV_VALIDATION: true
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+          GITHUB_CLIENT_ID: test-client-id
+          GITHUB_CLIENT_SECRET: test-client-secret
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
       
       - name: Lint
         run: |
