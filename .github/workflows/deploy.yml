@@ -130,12 +130,18 @@ jobs:
       - name: Deploy Runner to ECS
         run: |
           echo "Deploying Runner service with new task definition..."
+          
+          # Update service with minimumHealthyPercent=0 to allow old task to stop first
+          # This is necessary because t3.medium can only fit one 2GB task at a time
           aws ecs update-service \
             --cluster containrlab-runner-ec2 \
             --service containrlab-runner-service \
             --task-definition ${{ steps.runner-taskdef.outputs.task-definition-arn }} \
+            --deployment-configuration "minimumHealthyPercent=0,maximumPercent=200" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          echo "✅ Runner deployment started (old task will stop before new one starts)"
       
       # Wait for services to stabilize
       - name: Wait for API/Web deployment
