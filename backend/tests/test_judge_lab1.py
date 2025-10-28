@@ -107,7 +107,7 @@ class FakeRunner:
 
 def test_lab1_success() -> None:
     runner = FakeRunner(
-        dockerignore_content="node_modules\nvenv\n",
+        dockerignore_content="__pycache__\nvenv\nnode_modules\n",
     )
     result = asyncio.run(evaluate("abc123", runner))
     assert result.passed is True
