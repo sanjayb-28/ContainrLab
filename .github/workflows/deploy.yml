@@ -54,6 +54,8 @@ jobs:
           file: ./frontend/Dockerfile
           push: true
           platforms: linux/arm64
+          build-args: |
+            NEXT_PUBLIC_API_BASE=https://api.containrlab.click
           tags: |
             ${{ env.ECR_REGISTRY }}/containrlab-web:latest
             ${{ env.ECR_REGISTRY }}/containrlab-web:${{ github.sha }}
