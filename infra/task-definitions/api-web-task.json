@@ -126,7 +126,7 @@
   "requiresCompatibilities": [
     "FARGATE"
   ],
-  "cpu": "1024",
-  "memory": "3072",
+  "cpu": "512",
+  "memory": "2048",
   "enableFaultInjection": false
 }
