@@ -80,7 +80,7 @@ jobs:
       - name: Build and push RunnerD image
         uses: docker/build-push-action@v5
         with:
-          context: ./runner/supervisor
+          context: .
           file: ./runner/supervisor/Dockerfile
           push: true
           platforms: linux/amd64
