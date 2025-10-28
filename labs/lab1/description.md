@@ -6,7 +6,7 @@ You’re building a tiny web service that says “ok” at `http://localhost:808
 
 1. **`app.py`** – a Python web app (FastAPI is recommended) with a single route `/health` that returns 200 and a simple JSON body (for example `{ "ok": true }`). Make sure the app listens on `0.0.0.0` so it’s reachable from outside the container.
 2. **`requirements.txt`** – list every Python package your app needs (e.g. `fastapi`, `uvicorn`). Docker will install from this file.
-3. **`.dockerignore`** – keep bulky folders (virtual environments, node_modules, cache files, `.git`, etc.) out of the build context so your image builds quickly.
+3. **`.dockerignore`** – keep bulky folders (virtual environments like `venv/`, Python cache files like `__pycache__/`, `.git`, etc.) out of the build context so your image builds quickly.
 4. **`Dockerfile`** – base on a lightweight Python image, copy `requirements.txt`, install dependencies, then copy the rest of the source and start the server on port 8080 when the container runs.
 
 ## Suggested workflow
