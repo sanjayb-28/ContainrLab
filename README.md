@@ -14,9 +14,7 @@
 
 ### 📺 Demo Video
 
-[![ContainrLab Demo](https://via.placeholder.com/800x450/1a1a2e/16213e?text=ContainrLab+Demo+Video)](https://your-demo-video-link-here.com)
-
-*Click to watch a full walkthrough* → [Demo Video](https://your-demo-video-link-here.com) *(placeholder)*
+[![ContainrLab Demo](https://img.shields.io/badge/▶️_Watch-Demo_Video-red?style=for-the-badge&logo=youtube)](https://www.loom.com/share/2620a2eaf62f4459862d5c9aaece4cd0)
 
 </div>
 
@@ -90,7 +88,7 @@ Run the full stack on your machine with Docker Compose.
 - Docker Desktop
 - Node.js 20+
 - Python 3.11+
-- GitHub OAuth app ([setup guide](docs/CI_CD_SETUP.md#github-oauth))
+- GitHub OAuth app ([setup guide](docs/CI-CD-SETUP.md#github-oauth))
 
 **Quick Start:**
 ```bash
@@ -146,7 +144,7 @@ Deploy your own instance to AWS ECS with automated CI/CD.
 |----------|---------------|
 | **🚀 Getting Started** | [Quick Start](#-quick-start) \| [Local Setup](docs/LOCAL_SETUP.md) \| [FAQs](docs/) |
 | **🏗️ Architecture** | [System Design](docs/ARCHITECTURE.md) \| [AWS Infrastructure](docs/diagrams/aws-infrastructure.md) \| [Diagrams](docs/diagrams/) |
-| **☁️ Deployment** | [AWS Deployment](docs/DEPLOYMENTS.md) \| [CI/CD Setup](docs/CI_CD_SETUP.md) \| [Secrets Management](docs/SECRETS_MANAGEMENT.md) |
+| **☁️ Deployment** | [AWS Deployment](docs/DEPLOYMENTS.md) \| [CI/CD Setup](docs/CI-CD-SETUP.md) \| [Secrets Management](docs/SECRETS_MANAGEMENT.md) |
 | **🔧 Development** | [Backend](backend/) \| [Frontend](frontend/) \| [Runner](runner/) \| [Judge](judge/) |
 | **🎓 Labs** | [Lab Catalog](labs/) \| [Lab 1](labs/lab1/) \| [Lab 2](labs/lab2/) \| [Lab 3](labs/lab3/) |
 
@@ -237,7 +235,7 @@ We welcome contributions! Areas where we'd love help:
 - 📖 **Documentation** - Improve guides and examples
 - 🧪 **Testing** - Increase test coverage
 
-**Coming soon:** [Contributing Guidelines](CONTRIBUTING.md)
+**[→ Read the full Contributing Guide](CONTRIBUTING.md)**
 
 ---
 
@@ -271,7 +269,7 @@ Built with:
 
 - 🐛 **Issues:** [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
 - 💬 **Discussions:** [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
-- 📧 **Email:** support@containrlab.click *(configure if needed)*
+- 📧 **Email:** sanjay.baskaran@colorado.edu
 
 ---
 

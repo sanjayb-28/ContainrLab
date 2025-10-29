@@ -607,7 +607,7 @@ GEMINI_TIMEOUT_SECONDS=20
 
 - **[Deployment Guide](DEPLOYMENTS.md)** - How to deploy this architecture to AWS
 - **[AWS Infrastructure](AWS_INFRASTRUCTURE.md)** - Detailed AWS resource breakdown
-- **[CI/CD Setup](CI_CD_SETUP.md)** - Automated deployment pipeline
+- **[CI/CD Setup](CI-CD-SETUP.md)** - Automated deployment pipeline
 - **[Diagrams](diagrams/)** - All architecture diagrams
 
 ---

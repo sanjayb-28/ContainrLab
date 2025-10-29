@@ -114,7 +114,7 @@ aws ssm put-parameter \
 # Update a secure parameter
 aws ssm put-parameter \
   --name /containrlab/NEXTAUTH_SECRET \
-  --value "your-secret-here" \
+  --value "$(openssl rand -hex 32)" \
   --type SecureString \
   --overwrite \
   --region us-east-1

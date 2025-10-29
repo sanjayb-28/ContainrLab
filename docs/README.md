@@ -68,7 +68,7 @@ Deploy your own instance to AWS:
 | Document | Description |
 |----------|-------------|
 | **[Deployment Guide](DEPLOYMENTS.md)** | Step-by-step AWS deployment |
-| **[CI/CD Setup](CI_CD_SETUP.md)** | Automated GitHub Actions deployment |
+| **[CI/CD Setup](CI-CD-SETUP.md)** | Automated GitHub Actions deployment |
 | **[Secrets Management](SECRETS_MANAGEMENT.md)** | Managing secrets (local & AWS) |
 | **[AWS Infrastructure Details](AWS_INFRASTRUCTURE.md)** | Complete AWS resource breakdown |
 
@@ -97,7 +97,7 @@ docs/
 ├── ARCHITECTURE.md                   # System design
 ├── LOCAL_SETUP.md                    # Local development
 ├── DEPLOYMENTS.md                    # AWS deployment
-├── CI_CD_SETUP.md                    # GitHub Actions
+├── CI-CD-SETUP.md                    # GitHub Actions
 ├── SECRETS_MANAGEMENT.md             # Secrets & config
 ├── AWS_INFRASTRUCTURE.md             # AWS resources & cost
 └── diagrams/                         # Architecture diagrams
@@ -214,7 +214,7 @@ Session Containers
 - **Deploy to AWS** → [Deployment Guide](DEPLOYMENTS.md)
 - **Understand how it works** → [Architecture](ARCHITECTURE.md)
 - **Contribute code** → [Local Setup](LOCAL_SETUP.md) + [Component Docs](#-component-documentation)
-- **Set up CI/CD** → [CI/CD Setup](CI_CD_SETUP.md)
+- **Set up CI/CD** → [CI/CD Setup](CI-CD-SETUP.md)
 - **Manage secrets** → [Secrets Management](SECRETS_MANAGEMENT.md)
 - **See AWS costs** → [AWS Infrastructure](AWS_INFRASTRUCTURE.md)
 - **Troubleshoot** → Check relevant component README
@@ -254,7 +254,7 @@ We welcome contributions to documentation!
 - Use consistent formatting
 - Test all code examples
 
-**[→ Main Contributing Guide](../CONTRIBUTING.md)** *(coming soon)*
+**[→ Main Contributing Guide](../CONTRIBUTING.md)**
 
 ---
 
@@ -270,7 +270,7 @@ We welcome contributions to documentation!
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design
 - [LOCAL_SETUP.md](LOCAL_SETUP.md) - Local development guide
 - [DEPLOYMENTS.md](DEPLOYMENTS.md) - AWS deployment guide
-- [CI_CD_SETUP.md](CI_CD_SETUP.md) - GitHub Actions configuration
+- [CI-CD-SETUP.md](CI-CD-SETUP.md) - GitHub Actions configuration
 - [SECRETS_MANAGEMENT.md](SECRETS_MANAGEMENT.md) - Secrets and configuration
 - [AWS_INFRASTRUCTURE.md](AWS_INFRASTRUCTURE.md) - AWS resources and costs
 

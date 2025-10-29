@@ -611,7 +611,7 @@ aws cloudwatch put-metric-alarm \
 
 - **[Architecture](ARCHITECTURE.md)** - System design and components
 - **[Deployment Guide](DEPLOYMENTS.md)** - How to deploy
-- **[CI/CD Setup](CI_CD_SETUP.md)** - Automated deployment
+- **[CI/CD Setup](CI-CD-SETUP.md)** - Automated deployment
 - **[Secrets Management](SECRETS_MANAGEMENT.md)** - Managing credentials
 - **[Infrastructure Diagram](diagrams/aws-infrastructure.md)** - Visual overview
 

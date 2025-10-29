@@ -400,7 +400,7 @@ jobs:
 - Not accessible to forked repositories
 - Not exposed in pull requests from forks
 
-**[→ Complete CI/CD setup guide](CI_CD_SETUP.md)**
+**[→ Complete CI/CD setup guide](CI-CD-SETUP.md)**
 
 ---
 
@@ -735,7 +735,7 @@ aws sts get-caller-identity
 
 - **[Local Setup](LOCAL_SETUP.md)** - Setting up local development secrets
 - **[Deployment Guide](DEPLOYMENTS.md)** - AWS SSM parameter setup
-- **[CI/CD Setup](CI_CD_SETUP.md)** - GitHub Actions secrets
+- **[CI/CD Setup](CI-CD-SETUP.md)** - GitHub Actions secrets
 - **[AWS Infrastructure](AWS_INFRASTRUCTURE.md)** - IAM roles and permissions
 - **[Architecture](ARCHITECTURE.md)** - Security model
 
