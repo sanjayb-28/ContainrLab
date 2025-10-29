@@ -14,10 +14,7 @@
 
 ### 📺 Demo Video
 
-[![ContainrLab Demo](https://img.shields.io/badge/▶️_Watch-Demo_Video-red?style=for-the-badge&logo=youtube)](YOUR_DEMO_VIDEO_URL_HERE)
-
-> **📹 Add your demo video link above!** Replace `YOUR_DEMO_VIDEO_URL_HERE` with your YouTube/Loom video URL.  
-> In the meantime, try the [live demo](https://app.containrlab.click) to see ContainrLab in action.
+[![ContainrLab Demo](https://img.shields.io/badge/▶️_Watch-Demo_Video-red?style=for-the-badge&logo=youtube)](https://www.loom.com/share/2620a2eaf62f4459862d5c9aaece4cd0)
 
 </div>
 
