@@ -248,7 +248,7 @@ env:
   AWS_ACCOUNT_ID: YOUR-ACCOUNT-ID  # Update this
 ```
 
-**[→ Complete CI/CD setup guide](CI_CD_SETUP.md)**
+**[→ Complete CI/CD setup guide](CI-CD-SETUP.md)**
 
 ---
 
@@ -691,7 +691,7 @@ docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/containrlab-runner
 
 ## Next Steps
 
-- **[Set up CI/CD](CI_CD_SETUP.md)** - Automate future deployments
+- **[Set up CI/CD](CI-CD-SETUP.md)** - Automate future deployments
 - **[Configure secrets](SECRETS_MANAGEMENT.md)** - Rotate credentials
 - **[Monitor costs](AWS_INFRASTRUCTURE.md)** - Track spending
 - **[Scale up](AWS_INFRASTRUCTURE.md#scaling)** - Add more capacity
@@ -702,7 +702,7 @@ docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/containrlab-runner
 
 - **[Architecture](ARCHITECTURE.md)** - How the system works
 - **[AWS Infrastructure](AWS_INFRASTRUCTURE.md)** - Resource details and costs
-- **[CI/CD Setup](CI_CD_SETUP.md)** - Automated deployment
+- **[CI/CD Setup](CI-CD-SETUP.md)** - Automated deployment
 - **[Secrets Management](SECRETS_MANAGEMENT.md)** - Managing credentials
 - **[Deployment Flow Diagram](diagrams/deployment-flow.md)** - Visual pipeline
 
@@ -710,6 +710,6 @@ docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/containrlab-runner
 
 <div align="center">
 
-**[← Back to Documentation](README.md)** | **[Set Up CI/CD →](CI_CD_SETUP.md)**
+**[← Back to Documentation](README.md)** | **[Set Up CI/CD →](CI-CD-SETUP.md)**
 
 </div>

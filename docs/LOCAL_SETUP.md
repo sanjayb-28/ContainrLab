@@ -810,7 +810,7 @@ code .
 
 4. **Deploy to AWS**
    - [Deployment guide](DEPLOYMENTS.md)
-   - [CI/CD setup](CI_CD_SETUP.md)
+   - [CI/CD setup](CI-CD-SETUP.md)
 
 ---
 
