@@ -1,18 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
+import { useRef } from "react";
 import FeatureCarousel from "@/components/FeatureCarousel";
 import { useAuth } from "@/components/AuthProvider";
+import AnimatedCounter from "@/components/ui/AnimatedCounter";
 
 const stats = [
-  { label: "Labs ready", value: "12+" },
-  { label: "Container builds run", value: "9k" },
-  { label: "Learners leveling up", value: "4.7k" },
+  { label: "Labs ready", value: 12, suffix: "+" },
+  { label: "Container builds run", value: 9000, suffix: "+" },
+  { label: "Learners leveling up", value: 4700, suffix: "+" },
 ];
 
 export default function LandingContent() {
   const { login, token } = useAuth();
+  const heroRef = useRef(null);
+  const featuresRef = useRef(null);
+  const isHeroInView = useInView(heroRef, { once: true, margin: "-100px" });
+  const isFeaturesInView = useInView(featuresRef, { once: true, margin: "-100px" });
 
   return (
     <motion.div
@@ -36,8 +42,22 @@ export default function LandingContent() {
             Container mastery
           </span>
           <h1 className="text-4xl font-bold md:text-5xl">
-            <span className="bg-gradient-to-r from-white via-sky-100 to-white bg-clip-text text-transparent animate-gradient">
-              Build real containers, guided by an AI coach and instant feedback.
+            <span className="relative inline-block">
+              <span className="bg-gradient-to-r from-white via-sky-100 to-white bg-clip-text text-transparent animate-gradient">
+                Build real containers, guided by an AI coach and instant feedback.
+              </span>
+              <motion.span
+                className="absolute -inset-1 bg-gradient-to-r from-sky-400/20 via-violet-400/20 to-emerald-400/20 blur-2xl"
+                animate={{
+                  opacity: [0.3, 0.6, 0.3],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                aria-hidden
+              />
             </span>
           </h1>
           <p className="text-base text-slate-300 md:text-lg">
@@ -75,7 +95,9 @@ export default function LandingContent() {
                 className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 to-white/[0.02] p-4 text-center shadow-inner transition-all hover:border-sky-400/40 hover:from-white/10 hover:to-white/5 hover:shadow-lg hover:shadow-sky-500/10"
               >
                 <dt className="text-xs uppercase tracking-wide text-slate-400">{stat.label}</dt>
-                <dd className="mt-2 font-mono text-2xl font-semibold text-white">{stat.value}</dd>
+                <dd className="mt-2 font-mono text-2xl font-semibold text-white">
+                  <AnimatedCounter value={stat.value} suffix={stat.suffix} />
+                </dd>
               </motion.div>
             ))}
           </dl>
@@ -114,12 +136,15 @@ export default function LandingContent() {
         </div>
       </motion.section>
 
-      <FeatureCarousel />
+      <div ref={featuresRef}>
+        <FeatureCarousel />
+      </div>
 
       <motion.section
+        ref={heroRef}
         initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.6 }}
+        animate={isHeroInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+        transition={{ duration: 0.6 }}
         className="grid gap-8 md:grid-cols-3"
       >
         {[
