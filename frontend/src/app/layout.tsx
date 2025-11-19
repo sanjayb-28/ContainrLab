@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import AuthProvider from "@/components/AuthProvider";
 import SiteHeader from "@/components/SiteHeader";
+import AnimatedBackground from "@/components/ui/AnimatedBackground";
+import FloatingParticles from "@/components/ui/FloatingParticles";
+import CursorGlow from "@/components/ui/CursorGlow";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,16 +21,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${inter.className} bg-slate-950 text-slate-200 antialiased`}
-        style={{
-          backgroundImage:
-            "radial-gradient(circle at 20% 20%, rgba(56,189,248,0.15), transparent 35%), radial-gradient(circle at 80% 0%, rgba(192,132,252,0.18), transparent 40%), linear-gradient(180deg, rgba(15,23,42,0.8), rgba(15,23,42,0.95))",
-          minHeight: "100vh",
-        }}
-      >
+      <body className={`${inter.className} relative overflow-x-hidden bg-slate-950 text-slate-200 antialiased`}>
+        <AnimatedBackground />
+        <FloatingParticles />
+        <CursorGlow />
         <AuthProvider>
-          <div className="flex min-h-screen flex-col">
+          <div className="relative z-10 flex min-h-screen flex-col">
             <SiteHeader />
             <main className="flex-1">
               <div className="mx-auto w-full max-w-6xl px-6 py-12">{children}</div>

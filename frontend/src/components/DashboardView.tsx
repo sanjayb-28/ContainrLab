@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import type { LabSummary } from "@/lib/labs";
 import Modal from "@/components/ui/Modal";
 
@@ -137,26 +138,45 @@ export default function DashboardView({ labs }: DashboardViewProps) {
   );
 
   return (
-    <div className="space-y-16">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-lg md:p-12">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+      className="space-y-16"
+    >
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-lg transition-all hover:border-emerald-400/30 hover:shadow-xl hover:shadow-emerald-500/10 md:p-12"
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+          <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        </div>
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="inline-flex rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
               Welcome back
             </span>
-            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">Your Docker learning hub</h1>
+            <h1 className="mt-4 text-3xl font-bold md:text-4xl">
+              <span className="bg-gradient-to-r from-emerald-400 via-sky-400 to-violet-400 bg-clip-text text-transparent animate-gradient">
+                Your Docker learning hub
+              </span>
+            </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-300 md:text-base">
               Continue a lab where you left off, or explore new lessons to deepen your container tooling knowledge.
             </p>
           </div>
-          <Link
-            href="/labs/lab1"
-            className="inline-flex items-center justify-center rounded-full border border-emerald-400 px-6 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 hover:text-white"
-          >
-            Resume lab
-          </Link>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+            <Link
+              href="/labs/lab1"
+              className="inline-flex items-center justify-center rounded-full border border-emerald-400 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 px-6 py-3 text-sm font-semibold text-emerald-100 shadow-lg shadow-emerald-500/20 transition hover:border-emerald-300 hover:from-emerald-500/20 hover:to-emerald-600/20 hover:text-white"
+            >
+              Resume lab
+            </Link>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       <section id="labs" className="space-y-6">
         <div className="flex items-center justify-between">
@@ -177,12 +197,21 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {orderedLabs.map((lab) => (
-              <article
+            {orderedLabs.map((lab, index) => (
+              <motion.article
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02, y: -8, rotateY: 3 }}
+                style={{ transformStyle: "preserve-3d", perspective: 1000 }}
                 key={lab.slug}
-                className="group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 p-7 shadow-lg backdrop-blur-xl transition hover:-translate-y-1 hover:border-sky-400/40 hover:shadow-xl"
+                className="group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/60 to-slate-900/40 p-7 shadow-lg backdrop-blur-xl transition hover:border-sky-400/40 hover:shadow-xl hover:shadow-sky-500/20"
               >
-                <div className="flex flex-1 flex-col gap-4">
+                <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+                  <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
+                  <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl" />
+                </div>
+                <div className="relative z-10 flex flex-1 flex-col gap-4">
                   <span className="w-fit rounded-full border border-sky-400/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-100">
                     {lab.has_starter ? "Workspace ready" : "Hands-on practice"}
                   </span>
@@ -221,7 +250,8 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                     Launch lab
                   </Link>
                 </div>
-              </article>
+                </div>
+              </motion.article>
             ))}
           </div>
         )}
@@ -235,12 +265,17 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {learnTopics.map((topic) => (
-            <button
+          {learnTopics.map((topic, index) => (
+            <motion.button
               key={topic.id}
               type="button"
               onClick={() => setSelectedTopic(topic)}
-              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-6 text-left shadow-lg transition hover:-translate-y-1 hover:border-white/30 hover:shadow-xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.05 }}
+              whileHover={{ scale: 1.05, y: -8, rotateX: 5 }}
+              style={{ transformStyle: "preserve-3d" }}
+              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/70 to-slate-900/50 p-6 text-left shadow-lg transition hover:border-white/30 hover:shadow-xl hover:shadow-sky-500/20"
             >
               <div
                 className="absolute inset-0 opacity-20 transition group-hover:opacity-40"
@@ -265,7 +300,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                   </svg>
                 </span>
               </div>
-            </button>
+            </motion.button>
           ))}
         </div>
       </section>
@@ -302,6 +337,6 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </div>
         ) : null}
       </Modal>
-    </div>
+    </motion.div>
   );
 }
