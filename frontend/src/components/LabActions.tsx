@@ -70,6 +70,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   const [loading, setLoading] = useState<LoadingState>(null);
   const [message, setMessage] = useState<Message | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
   const attemptedRestoreRef = useRef(false);
 
   useEffect(() => {
@@ -141,6 +142,12 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   const endedAt = session?.ended_at ? new Date(session.ended_at).getTime() : null;
   const sessionExpired = Boolean(endedAt) || (expiresAt !== null && Date.now() >= expiresAt);
   const ttlWarning = !sessionExpired && remainingSeconds !== null && remainingSeconds <= 300;
+  const ttlPercent = useMemo(() => {
+    if (!session || !session.ttl_seconds || remainingSeconds === null || sessionExpired) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, (remainingSeconds / session.ttl_seconds) * 100));
+  }, [remainingSeconds, session, sessionExpired]);
 
   useEffect(() => {
     if (!expiresAt || sessionExpired) {
@@ -258,6 +265,19 @@ export default function LabActions({ slug, initialSessionId }: Props) {
 
   const actionsDisabled = !token || loading !== null;
 
+  const handleCopySessionId = useCallback(async () => {
+    if (!currentSessionId) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(currentSessionId);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (error) {
+      console.warn("Failed to copy session id", error);
+    }
+  }, [currentSessionId]);
+
   useEffect(() => {
     if (token && currentSessionId && !session) {
       void refreshHistory(currentSessionId, HISTORY_LIMIT).catch((err) => {
@@ -345,12 +365,36 @@ export default function LabActions({ slug, initialSessionId }: Props) {
         <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
           <label className="flex flex-col gap-2 text-sm text-slate-300">
             Session ID
-            <input
-              value={sessionField}
-              readOnly
-              className="cursor-not-allowed rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                value={sessionField}
+                readOnly
+                className="flex-1 cursor-not-allowed rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-slate-100"
+              />
+              <button
+                type="button"
+                onClick={handleCopySessionId}
+                className="rounded-full border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800/60 disabled:opacity-60"
+                disabled={!currentSessionId}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
           </label>
+          {session && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>TTL remaining</span>
+                <span className={ttlWarning ? "text-amber-200" : "text-slate-200"}>{formatDuration(remainingSeconds)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-slate-800">
+                <div
+                  className={`h-full rounded-full ${ttlWarning ? "bg-amber-400" : "bg-emerald-400"}`}
+                  style={{ width: `${ttlPercent}%` }}
+                />
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-xs text-slate-500">Session IDs stay linked to your account and refresh automatically.</p>
         </div>
         <AnimatePresence>
@@ -400,26 +444,31 @@ export default function LabActions({ slug, initialSessionId }: Props) {
         {attempts.length === 0 ? (
           <p className="text-sm text-slate-500">No attempts yet. Run the judge to populate this section.</p>
         ) : (
-          <ul className="space-y-3 text-sm">
+          <ul className="relative space-y-6 border-l border-white/10 pl-6 text-sm">
             {attempts.map((attempt, index) => (
               <motion.li
                 key={attempt.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
-                className="card-shine rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-white/20"
+                className="relative rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-lg shadow-black/20"
               >
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span
+                  className={`absolute -left-[39px] top-4 flex h-4 w-4 items-center justify-center rounded-full border-2 ${
+                    attempt.passed ? "border-emerald-400 bg-emerald-500/20" : "border-red-400 bg-red-500/20"
+                  }`}
+                />
+                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium text-slate-100">Attempt #{attempt.id}</span>
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      attempt.passed ? "border border-emerald-400/60 text-emerald-200" : "border border-red-400/60 text-red-200"
+                      attempt.passed ? "bg-emerald-500/10 text-emerald-200" : "bg-red-500/10 text-red-200"
                     }`}
                   >
                     {attempt.passed ? "Passed" : "Failed"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">{new Date(attempt.created_at).toLocaleString()}</p>
+                <p className="text-xs text-slate-500">{new Date(attempt.created_at).toLocaleString()}</p>
                 {attempt.failures.length > 0 && (
                   <ul className="mt-3 space-y-2 text-sm text-red-200">
                     {attempt.failures.map((failure, idx) => (

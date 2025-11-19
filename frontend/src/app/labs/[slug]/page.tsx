@@ -1,14 +1,5 @@
-import Link from "next/link";
-import { Suspense } from "react";
-import WorkspacePane from "@/components/WorkspacePane";
-import InspectorPanel from "@/components/InspectorPanel";
-import AgentDrawer from "@/components/AgentDrawer";
 import { LabSessionProvider } from "@/components/LabSessionProvider";
 import { notFound } from "next/navigation";
-import LabActions from "@/components/LabActions";
-import Terminal from "@/components/Terminal";
-import Markdown from "@/components/Markdown";
-import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 import { fetchLab, LabDetail } from "@/lib/labs";
 import LabPageClient from "@/components/LabPageClient";
 
@@ -45,6 +36,8 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
         sessionId={sessionId}
         labDescription={lab.description}
         labSolution={lab.solution}
+        labTitle={lab.title}
+        labSummary={lab.summary ?? null}
       />
     </LabSessionProvider>
   );
