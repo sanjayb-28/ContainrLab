@@ -158,10 +158,9 @@ export default function DashboardView({ labs }: DashboardViewProps) {
             <span className="inline-flex rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
               Welcome back
             </span>
-            <h1 className="mt-4 text-3xl font-bold md:text-4xl">
-              <span className="bg-gradient-to-r from-emerald-400 via-sky-400 to-violet-400 bg-clip-text text-transparent animate-gradient">
-                Your Docker learning hub
-              </span>
+            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">
+              Your Docker learning hub
+              <span className="mt-2 block h-1 w-24 rounded-full bg-emerald-400/70" aria-hidden />
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-300 md:text-base">
               Continue a lab where you left off, or explore new lessons to deepen your container tooling knowledge.

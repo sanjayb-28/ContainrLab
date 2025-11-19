@@ -185,34 +185,31 @@ export default function LabPageClient({
         </CollapsiblePanel>
       </motion.div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <motion.div variants={itemVariants}>
-          <LabActions slug={slug} initialSessionId={sessionId} />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <WorkspacePane />
-        </motion.div>
-      </div>
+      <motion.div variants={itemVariants}>
+        <LabActions slug={slug} initialSessionId={sessionId} />
+      </motion.div>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        <motion.div variants={itemVariants}>
-          <InspectorPanel />
-        </motion.div>
+      <motion.div variants={itemVariants}>
+        <WorkspacePane />
+      </motion.div>
 
-        <motion.div variants={itemVariants}>
-          <CollapsiblePanel
-            title="Terminal"
-            subtitle="Connected session appears after you start one from the controls."
-            className="bg-slate-950/70"
-          >
-            <Terminal className="mt-3" />
-          </CollapsiblePanel>
-        </motion.div>
+      <motion.div variants={itemVariants}>
+        <InspectorPanel />
+      </motion.div>
 
-        <motion.div variants={itemVariants} className="lg:col-span-2">
-          <AgentDrawer labSlug={slug} />
-        </motion.div>
-      </div>
+      <motion.div variants={itemVariants}>
+        <CollapsiblePanel
+          title="Terminal"
+          subtitle="Connected session appears after you start one from the controls."
+          className="bg-slate-950/70"
+        >
+          <Terminal className="mt-3" />
+        </CollapsiblePanel>
+      </motion.div>
+
+      <motion.div variants={itemVariants}>
+        <AgentDrawer labSlug={slug} />
+      </motion.div>
 
       {labSolution ? (
         <motion.div variants={itemVariants}>
