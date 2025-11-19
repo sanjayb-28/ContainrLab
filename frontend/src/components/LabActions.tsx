@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { DISPLAY_API_BASE, apiPost } from "@/lib/api";
 import { fetchActiveLabSession, fetchSession, type SessionDetail } from "@/lib/labs";
 import { useAuth } from "@/components/AuthProvider";
@@ -276,30 +277,57 @@ export default function LabActions({ slug, initialSessionId }: Props) {
         }
         actions={
           <div className="flex flex-wrap gap-3">
-            <button
+            <motion.button
               type="button"
               onClick={handleStart}
               disabled={actionsDisabled}
-              className="rounded-full border border-sky-400 px-4 py-2 text-sm font-medium text-sky-100 transition hover:bg-sky-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              whileHover={!actionsDisabled ? { scale: 1.05 } : {}}
+              whileTap={!actionsDisabled ? { scale: 0.98 } : {}}
+              className="btn-ripple rounded-full border border-sky-400 bg-gradient-to-r from-sky-500/10 to-transparent px-4 py-2 text-sm font-medium text-sky-100 shadow-lg shadow-sky-500/10 transition hover:border-sky-300 hover:from-sky-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
             >
-              {loading === "start" ? "Starting..." : "Start session"}
-            </button>
-            <button
+              {loading === "start" ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />
+                  Starting...
+                </span>
+              ) : (
+                "Start session"
+              )}
+            </motion.button>
+            <motion.button
               type="button"
               onClick={handleJudge}
               disabled={!token || loading === "judge" || sessionExpired || !currentSessionId}
-              className="rounded-full border border-emerald-400 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              whileHover={!(!token || loading === "judge" || sessionExpired || !currentSessionId) ? { scale: 1.05 } : {}}
+              whileTap={!(!token || loading === "judge" || sessionExpired || !currentSessionId) ? { scale: 0.98 } : {}}
+              className="btn-ripple rounded-full border border-emerald-400 bg-gradient-to-r from-emerald-500/10 to-transparent px-4 py-2 text-sm font-medium text-emerald-100 shadow-lg shadow-emerald-500/10 transition hover:border-emerald-300 hover:from-emerald-500/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none"
             >
-              {loading === "judge" ? "Checking..." : "Run judge"}
-            </button>
-            <button
+              {loading === "judge" ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                  Checking...
+                </span>
+              ) : (
+                "Run judge"
+              )}
+            </motion.button>
+            <motion.button
               type="button"
               onClick={handleHistoryRefresh}
               disabled={!token || loading === "history" || !currentSessionId}
-              className="rounded-full border border-slate-500 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60"
+              whileHover={!(!token || loading === "history" || !currentSessionId) ? { scale: 1.05 } : {}}
+              whileTap={!(!token || loading === "history" || !currentSessionId) ? { scale: 0.98 } : {}}
+              className="btn-ripple rounded-full border border-slate-500 bg-gradient-to-r from-slate-500/10 to-transparent px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-slate-400 hover:bg-slate-700/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading === "history" ? "Refreshing..." : "Refresh history"}
-            </button>
+              {loading === "history" ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                  Refreshing...
+                </span>
+              ) : (
+                "Refresh history"
+              )}
+            </motion.button>
           </div>
         }
       >
@@ -325,17 +353,23 @@ export default function LabActions({ slug, initialSessionId }: Props) {
           </label>
           <p className="mt-2 text-xs text-slate-500">Session IDs stay linked to your account and refresh automatically.</p>
         </div>
-        {message && (
-          <div
-            className={`rounded-2xl border px-4 py-3 text-sm ${
-              message.kind === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-                : "border-red-500/40 bg-red-500/10 text-red-200"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
+        <AnimatePresence>
+          {message && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className={`rounded-2xl border px-4 py-3 text-sm shadow-lg ${
+                message.kind === "success"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200 shadow-emerald-500/20"
+                  : "border-red-500/40 bg-red-500/10 text-red-200 shadow-red-500/20"
+              }`}
+            >
+              {message.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </CollapsiblePanel>
 
       <CollapsiblePanel title="Current session">
@@ -367,8 +401,14 @@ export default function LabActions({ slug, initialSessionId }: Props) {
           <p className="text-sm text-slate-500">No attempts yet. Run the judge to populate this section.</p>
         ) : (
           <ul className="space-y-3 text-sm">
-            {attempts.map((attempt) => (
-              <li key={attempt.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+            {attempts.map((attempt, index) => (
+              <motion.li
+                key={attempt.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className="card-shine rounded-2xl border border-white/10 bg-slate-900/70 p-4 transition hover:border-white/20"
+              >
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="font-medium text-slate-100">Attempt #{attempt.id}</span>
                   <span
@@ -406,7 +446,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
                     </pre>
                   </div>
                 )}
-              </li>
+              </motion.li>
             ))}
           </ul>
         )}

@@ -10,6 +10,7 @@ import Terminal from "@/components/Terminal";
 import Markdown from "@/components/Markdown";
 import CollapsiblePanel from "@/components/ui/CollapsiblePanel";
 import { fetchLab, LabDetail } from "@/lib/labs";
+import LabPageClient from "@/components/LabPageClient";
 
 type LabPageProps = {
   params: { slug: string };
@@ -39,42 +40,12 @@ export default async function LabPage({ params, searchParams }: LabPageProps) {
 
   return (
     <LabSessionProvider initialSessionId={sessionId}>
-      <div className="space-y-8">
-        <nav>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-3 rounded-full border border-sky-400 px-5 py-2 text-sm font-semibold text-sky-100 transition hover:bg-sky-500/20 hover:text-white"
-          >
-            <span aria-hidden="true">&larr;</span>
-            Back to all labs
-          </Link>
-        </nav>
-
-        <CollapsiblePanel title="Lab overview" defaultOpen>
-          <Suspense fallback={<p className="text-sm text-slate-500">Loading description…</p>}>
-            <Markdown content={lab.description} />
-          </Suspense>
-        </CollapsiblePanel>
-
-        <LabActions slug={params.slug} initialSessionId={sessionId} />
-        <WorkspacePane />
-        <InspectorPanel />
-        <AgentDrawer labSlug={params.slug} />
-        <CollapsiblePanel
-          title="Terminal"
-          subtitle="Connected session appears after you start one from the controls."
-        >
-          <Terminal className="mt-3" />
-        </CollapsiblePanel>
-
-        {lab.solution ? (
-          <CollapsiblePanel title="Solution" defaultOpen={false}>
-            <Suspense fallback={<p className="text-sm text-slate-500">Loading solution…</p>}>
-              <Markdown content={lab.solution} />
-            </Suspense>
-          </CollapsiblePanel>
-        ) : null}
-      </div>
+      <LabPageClient
+        slug={params.slug}
+        sessionId={sessionId}
+        labDescription={lab.description}
+        labSolution={lab.solution}
+      />
     </LabSessionProvider>
   );
 }
