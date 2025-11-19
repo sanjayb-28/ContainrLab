@@ -55,7 +55,19 @@ export default function InspectorPanel() {
     void load(sessionId);
   }, [load, sessionId]);
 
-  const timeline = useMemo(() => (summary ? buildTimeline(summary.timeline ?? []) : []), [summary]);
+  const recentAttempts = useMemo(
+    () => (summary?.timeline ? buildTimeline(summary.timeline).slice(0, 3) : []),
+    [summary?.timeline]
+  );
+
+  const passRate = useMemo(() => {
+    const entries = summary?.timeline ?? [];
+    if (entries.length === 0) {
+      return null;
+    }
+    const passed = entries.filter((entry) => entry.passed).length;
+    return Math.round((passed / entries.length) * 100);
+  }, [summary?.timeline]);
 
   if (!sessionId) {
     return (
@@ -242,48 +254,52 @@ export default function InspectorPanel() {
         )}
       </div>
 
-      {timeline.length > 0 && (
-        <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-slate-200">
+      <div className="grid gap-4 text-sm text-slate-200 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 shadow-inner">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-100">Attempt timeline</h3>
-            <span className="text-xs text-slate-500">Newest first</span>
+            <p className="text-xs uppercase tracking-wide text-slate-500">Judge health</p>
+            <span className="text-[11px] text-slate-500">last {summary.timeline?.length ?? 0} run(s)</span>
           </div>
-          <ul className="space-y-3">
-            {timeline.map((entry) => (
-              <li key={entry.attempt_id} className="space-y-2 rounded bg-slate-900/60 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-semibold text-slate-200">Attempt #{entry.attempt_id}</span>
-                  <span className={entry.passed ? "text-emerald-300" : "text-amber-200"}>
-                    {entry.passed ? "Passed" : "Failed"}
-                  </span>
-                  <span className="text-slate-500">{new Date(entry.created_at).toLocaleString()}</span>
-                </div>
-                {entry.metrics_display.length > 0 && (
-                  <ul className="grid gap-2 text-xs md:grid-cols-2">
-                    {entry.metrics_display.map((metric) => (
-                      <li key={metric.path} className="flex justify-between rounded border border-slate-800 bg-slate-950/60 px-3 py-2">
-                        <span className="text-slate-300">{metric.label}</span>
-                        <span className="text-right text-slate-100">
-                          <span>{metric.display}</span>
-                          {formatDelta(metric.delta)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {entry.notes && Object.keys(entry.notes).length > 0 && (
-                  <div className="text-xs text-slate-400">
-                    <p className="font-semibold uppercase tracking-wide text-slate-400">Notes</p>
-                    <pre className="mt-1 overflow-x-auto rounded bg-slate-950/80 p-3 text-xs text-slate-200">
-                      {JSON.stringify(entry.notes, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
+          <p className="mt-3 text-4xl font-semibold text-white">
+            {passRate !== null ? `${passRate}%` : "—"}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            {passRate !== null ? "pass rate across recent attempts" : "Run the judge to collect metrics"}
+          </p>
+          {recentAttempts[0] && (
+            <div className="mt-4 rounded-xl border border-white/5 bg-slate-900/60 p-3 text-xs">
+              <p className="font-semibold text-slate-200">Latest run</p>
+              <p className={recentAttempts[0].passed ? "text-emerald-300" : "text-amber-200"}>
+                {recentAttempts[0].passed ? "Passed" : "Failed"} • {new Date(recentAttempts[0].created_at).toLocaleString()}
+              </p>
+              {recentAttempts[0].metrics_display.length > 0 && (
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Key metric: {recentAttempts[0].metrics_display[0].label} {recentAttempts[0].metrics_display[0].display}
+                </p>
+              )}
+            </div>
+          )}
         </div>
-      )}
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 shadow-inner">
+          <div className="flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Latest highlights</p>
+            <span className="text-[11px] text-slate-500">Quick glance</span>
+          </div>
+          {recentAttempts.length === 0 ? (
+            <p className="mt-3 text-xs text-slate-500">Judge history will appear here after your first run.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {recentAttempts.map((entry) => (
+                <li key={entry.attempt_id} className="flex items-center justify-between rounded border border-white/5 bg-slate-900/60 px-3 py-2 text-xs">
+                  <span className="font-semibold text-slate-200">Attempt #{entry.attempt_id}</span>
+                  <span className={entry.passed ? "text-emerald-300" : "text-amber-200"}>{entry.passed ? "Passed" : "Failed"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-[11px] text-slate-500">Full judge logs live under “Recent judge attempts”.</p>
+        </div>
+      </div>
     </CollapsiblePanel>
   );
 }
