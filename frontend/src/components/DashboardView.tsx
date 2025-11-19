@@ -157,16 +157,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           <div>
             <div className="mt-2 inline-flex">
               <h1 className="whitespace-nowrap text-3xl font-bold text-white md:text-4xl">
-                Your{" "}
-                <span className="relative inline-flex flex-col items-start">
-                  <span className="font-semibold tracking-tight text-[#0DB7ED]">Docker</span>
-                  <span className="mt-1 flex items-center gap-1" aria-hidden>
-                    <span className="h-px w-6 bg-[#0DB7ED]" />
-                    <span className="h-1 w-1 rounded-full bg-[#0DB7ED]" />
-                    <span className="h-px w-6 bg-slate-200/80" />
-                  </span>
-                </span>{" "}
-                learning hub
+                Your <span className="text-[#0DB7ED]">Docker</span> learning hub
               </h1>
             </div>
             <p className="mt-3 max-w-2xl text-sm text-slate-300 md:text-base">
