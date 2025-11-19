@@ -67,6 +67,12 @@ export default function LabPageClient({
 }: LabPageClientProps) {
   const { session } = useLabSession();
   const [heroRemainingSeconds, setHeroRemainingSeconds] = useState<number | null>(null);
+  const heroSummary = useMemo(() => {
+    if (!labSummary) {
+      return null;
+    }
+    return labSummary.replace(/\s+/g, " ").trim();
+  }, [labSummary]);
 
   const expiresAt = session?.expires_at ? new Date(session.expires_at).getTime() : null;
   const endedAt = session?.ended_at ? new Date(session.ended_at).getTime() : null;
@@ -109,6 +115,7 @@ export default function LabPageClient({
       {
         label: "Runner",
         value: session?.runner_container ?? "—",
+        variant: "runner" as const,
       },
     ],
     [heroRemainingSeconds, session, sessionExpired]
@@ -155,7 +162,7 @@ export default function LabPageClient({
           </div>
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold text-white sm:text-4xl">{labTitle}</h1>
-            {labSummary ? <p className="max-w-3xl text-base text-slate-200/90">{labSummary}</p> : null}
+            {heroSummary ? <p className="max-w-3xl text-base text-slate-200/90">{heroSummary}</p> : null}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {heroStats.map((stat) => (
@@ -164,7 +171,15 @@ export default function LabPageClient({
                 className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur"
               >
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{stat.label}</p>
-                <p className="mt-2 text-xl font-semibold text-white">{stat.value}</p>
+                <p
+                  className={`mt-2 text-xl font-semibold text-white ${
+                    stat.variant === "runner"
+                      ? "break-all text-base font-mono text-sky-100"
+                      : ""
+                  }`}
+                >
+                  {stat.value}
+                </p>
               </div>
             ))}
           </div>

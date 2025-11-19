@@ -262,6 +262,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
   }, [currentSessionId, refreshHistory]);
 
   const attempts = useMemo(() => session?.attempts ?? [], [session]);
+  const attemptsPreview = useMemo(() => attempts.slice(0, 5), [attempts]);
 
   const actionsDisabled = !token || loading !== null;
 
@@ -445,7 +446,7 @@ export default function LabActions({ slug, initialSessionId }: Props) {
           <p className="text-sm text-slate-500">No attempts yet. Run the judge to populate this section.</p>
         ) : (
           <ul className="relative space-y-6 border-l border-white/10 pl-6 text-sm">
-            {attempts.map((attempt, index) => (
+            {attemptsPreview.map((attempt, index) => (
               <motion.li
                 key={attempt.id}
                 initial={{ opacity: 0, x: -20 }}
@@ -469,35 +470,25 @@ export default function LabActions({ slug, initialSessionId }: Props) {
                   </span>
                 </div>
                 <p className="text-xs text-slate-500">{new Date(attempt.created_at).toLocaleString()}</p>
-                {attempt.failures.length > 0 && (
-                  <ul className="mt-3 space-y-2 text-sm text-red-200">
-                    {attempt.failures.map((failure, idx) => (
-                      <li key={`${failure.code}-${idx}`}>
-                        <p className="font-medium">{failure.message}</p>
-                        {failure.hint && <p className="text-xs text-red-100/80">Hint: {failure.hint}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {Object.keys(attempt.metrics || {}).length > 0 && (
-                  <div className="mt-3 text-xs text-slate-400">
-                    <p className="font-semibold uppercase tracking-wide text-slate-300">Metrics</p>
-                    <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950/80 p-3 text-xs text-slate-200">
-                      {JSON.stringify(attempt.metrics, null, 2)}
-                    </pre>
+                {attempt.failures.length > 0 ? (
+                  <div className="mt-3 space-y-1 text-sm text-red-200">
+                    <p className="font-medium">{attempt.failures[0]?.message}</p>
+                    {attempt.failures[0]?.hint && <p className="text-xs text-red-100/80">Hint: {attempt.failures[0]?.hint}</p>}
+                    {attempt.failures.length > 1 && (
+                      <p className="text-xs text-red-100/70">+ {attempt.failures.length - 1} more issue(s)</p>
+                    )}
                   </div>
-                )}
-                {attempt.notes && Object.keys(attempt.notes).length > 0 && (
-                  <div className="mt-3 text-xs text-slate-400">
-                    <p className="font-semibold uppercase tracking-wide text-slate-300">Notes</p>
-                    <pre className="mt-1 overflow-x-auto rounded-md bg-slate-950/80 p-3 text-xs text-slate-200">
-                      {JSON.stringify(attempt.notes, null, 2)}
-                    </pre>
-                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-emerald-200">Judge passed. No issues reported.</p>
                 )}
               </motion.li>
             ))}
           </ul>
+        )}
+        {attempts.length > attemptsPreview.length && (
+          <p className="mt-4 text-xs text-slate-500">
+            Showing latest {attemptsPreview.length} attempts. Visit the Inspector for the full history.
+          </p>
         )}
       </CollapsiblePanel>
     </div>

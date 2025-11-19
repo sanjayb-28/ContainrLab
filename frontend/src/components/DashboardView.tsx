@@ -155,13 +155,17 @@ export default function DashboardView({ labs }: DashboardViewProps) {
         </div>
         <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <span className="inline-flex rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              Welcome back
-            </span>
-            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">
-              Your Docker learning hub
-              <span className="mt-2 block h-1 w-24 rounded-full bg-emerald-400/70" aria-hidden />
-            </h1>
+            <div className="mt-2 inline-flex">
+              <span className="relative inline-flex">
+                <span
+                  className="absolute -inset-3 rounded-[32px] bg-gradient-to-r from-[#0DB7ED]/40 via-sky-500/30 to-emerald-400/30 blur-2xl"
+                  aria-hidden
+                />
+                <h1 className="relative whitespace-nowrap text-3xl font-bold text-white md:text-4xl">
+                  Your <span className="text-[#0DB7ED] drop-shadow-[0_0_10px_rgba(13,183,237,0.45)]">Docker</span> learning hub
+                </h1>
+              </span>
+            </div>
             <p className="mt-3 max-w-2xl text-sm text-slate-300 md:text-base">
               Continue a lab where you left off, or explore new lessons to deepen your container tooling knowledge.
             </p>
