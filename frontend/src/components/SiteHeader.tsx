@@ -98,9 +98,9 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <Logo size="md" />
-          <nav className="hidden items-center gap-2 md:flex">
+          <nav className="hidden items-center gap-2 md:-ml-1 md:flex">
           {navLinks.map((link) => {
             const active = pathname === link.href || (link.href.includes("#") && pathname === link.href.split("#")[0]);
             const disabled = link.requiresAuth && !token;
