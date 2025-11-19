@@ -158,7 +158,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
             <div className="mt-2 inline-flex">
               <span className="relative inline-flex">
                 <span
-                  className="absolute -inset-3 rounded-[32px] bg-gradient-to-r from-[#0DB7ED]/40 via-sky-500/30 to-emerald-400/30 blur-2xl"
+                  className="absolute -inset-2 rounded-[32px] bg-gradient-to-r from-[#0DB7ED]/25 via-sky-500/20 to-emerald-400/20 blur-xl"
                   aria-hidden
                 />
                 <h1 className="relative whitespace-nowrap text-3xl font-bold text-white md:text-4xl">

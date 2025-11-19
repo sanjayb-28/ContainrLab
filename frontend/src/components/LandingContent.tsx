@@ -103,33 +103,31 @@ export default function LandingContent() {
           </dl>
         </div>
         <div className="relative z-10 flex items-center justify-center">
-          <div className="relative h-full w-full rounded-3xl border border-white/10 bg-slate-900/50 p-6 shadow-inner backdrop-blur-2xl">
-            <div className="h-full w-full rounded-2xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl">
-              <div className="space-y-5 text-sm font-mono text-slate-200">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-slate-100">Live Docker workspace</h3>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Edit files, run commands, and apply AI patches directly in the browser.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-slate-100">Judge insights</h3>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Validate your work with pass/fail results, diffable metrics, and attempt timelines.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-slate-100">Session persistence</h3>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Reopen the browser or sign back in and continue in the same workspace instantly.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <h3 className="text-sm font-semibold text-slate-100">Terminal resilience</h3>
-                  <p className="mt-2 text-xs text-slate-400">
-                    Automatic reconnect keeps your terminal alive even when restoring or creating fresh sessions.
-                  </p>
-                </div>
+          <div className="relative w-full rounded-3xl border border-white/10 bg-slate-950/70 p-10 shadow-2xl backdrop-blur-2xl">
+            <div className="grid gap-5 text-sm font-mono text-slate-200">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h3 className="text-sm font-semibold text-slate-100">Live Docker workspace</h3>
+                <p className="mt-2 text-xs text-slate-400">
+                  Edit files, run commands, and apply AI patches directly in the browser.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h3 className="text-sm font-semibold text-slate-100">Judge insights</h3>
+                <p className="mt-2 text-xs text-slate-400">
+                  Validate your work with pass/fail results, diffable metrics, and attempt timelines.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h3 className="text-sm font-semibold text-slate-100">Session persistence</h3>
+                <p className="mt-2 text-xs text-slate-400">
+                  Reopen the browser or sign back in and continue in the same workspace instantly.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+                <h3 className="text-sm font-semibold text-slate-100">Terminal resilience</h3>
+                <p className="mt-2 text-xs text-slate-400">
+                  Automatic reconnect keeps your terminal alive even when restoring or creating fresh sessions.
+                </p>
               </div>
             </div>
           </div>

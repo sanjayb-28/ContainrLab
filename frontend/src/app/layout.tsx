@@ -48,7 +48,7 @@ export default function RootLayout({
                     Contact
                   </a>
                 </div>
-                <p className="text-xs text-slate-500">Made with love by Sanjay Baskaran.</p>
+                <p className="text-xs text-slate-500">Made with ❤️ by Sanjay Baskaran.</p>
               </div>
             </footer>
           </div>

@@ -162,7 +162,11 @@ export default function LabPageClient({
           </div>
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold text-white sm:text-4xl">{labTitle}</h1>
-            {heroSummary ? <p className="max-w-3xl text-base text-slate-200/90">{heroSummary}</p> : null}
+            {heroSummary ? (
+              <p className="max-w-4xl text-base leading-relaxed text-slate-200/90 lg:max-w-5xl">
+                {heroSummary}
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {heroStats.map((stat) => (
