@@ -250,7 +250,6 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                     Launch lab
                   </Link>
                 </div>
-                </div>
               </motion.article>
             ))}
           </div>
