@@ -167,7 +167,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
               Continue a lab where you left off, or explore new lessons to deepen your container tooling knowledge.
             </p>
           </div>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }} className="inline-block">
             <Link
               href="/labs/lab1"
               className="inline-flex items-center justify-center rounded-full border border-emerald-400 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 px-6 py-3 text-sm font-semibold text-emerald-100 shadow-lg shadow-emerald-500/20 transition hover:border-emerald-300 hover:from-emerald-500/20 hover:to-emerald-600/20 hover:text-white"
@@ -205,7 +205,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                 whileHover={{ scale: 1.02, y: -8, rotateY: 3 }}
                 style={{ transformStyle: "preserve-3d", perspective: 1000 }}
                 key={lab.slug}
-                className="group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/60 to-slate-900/40 p-7 shadow-lg backdrop-blur-xl transition hover:border-sky-400/40 hover:shadow-xl hover:shadow-sky-500/20"
+                className="card-shine group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/60 to-slate-900/40 p-7 shadow-lg backdrop-blur-xl transition hover:border-sky-400/40 hover:shadow-xl hover:shadow-sky-500/20"
               >
                 <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
                   <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
@@ -274,7 +274,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
               transition={{ duration: 0.4, delay: index * 0.05 }}
               whileHover={{ scale: 1.05, y: -8, rotateX: 5 }}
               style={{ transformStyle: "preserve-3d" }}
-              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/70 to-slate-900/50 p-6 text-left shadow-lg transition hover:border-white/30 hover:shadow-xl hover:shadow-sky-500/20"
+              className="card-shine group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/70 to-slate-900/50 p-6 text-left shadow-lg transition hover:border-white/30 hover:shadow-xl hover:shadow-sky-500/20"
             >
               <div
                 className="absolute inset-0 opacity-20 transition group-hover:opacity-40"
