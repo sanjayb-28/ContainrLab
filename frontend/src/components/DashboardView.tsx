@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import type { LabSummary } from "@/lib/labs";
 import Modal from "@/components/ui/Modal";
 
@@ -30,7 +31,7 @@ const learnTopics: LearnTopic[] = [
       "Images are immutable templates; containers are running instances created from those images.",
       "Docker CLI talks to the Docker daemon—either locally (our labs) or on a remote host.",
     ],
-    image: "https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/server.svg",
     tintClass: "bg-sky-500/25",
   },
   {
@@ -43,7 +44,7 @@ const learnTopics: LearnTopic[] = [
       "Control groups (cgroups) enforce CPU, memory, and process limits for each container.",
       "Writable container layers sit on top of read-only image layers—destroy the container and that layer disappears.",
     ],
-    image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/green/container.svg",
     tintClass: "bg-emerald-500/25",
   },
   {
@@ -57,7 +58,7 @@ const learnTopics: LearnTopic[] = [
       "COPY vs ADD: use COPY for predictable behaviour, ADD only when you need remote URLs or tar extraction.",
       "Set a HEALTHCHECK to give orchestration tools a reliable readiness signal.",
     ],
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/code.svg",
     tintClass: "bg-sky-400/25",
   },
   {
@@ -70,7 +71,7 @@ const learnTopics: LearnTopic[] = [
       "Use tags (ex: containrlab/web:1.0.0) to version your images for CI/CD.",
       "Stopped containers keep their writable layer until you remove them—remember to clean up!",
     ],
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/violet/version-control.svg",
     tintClass: "bg-violet-500/25",
   },
   {
@@ -83,7 +84,7 @@ const learnTopics: LearnTopic[] = [
       "Keep secrets out of compose files—reference environment variables or mounted secrets instead.",
       "Combine `depends_on` with healthchecks to ensure services start in the correct order.",
     ],
-    image: "https://images.unsplash.com/photo-1454165205744-3b78555e5572?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/green/teamwork.svg",
     tintClass: "bg-emerald-500/20",
   },
   {
@@ -96,7 +97,7 @@ const learnTopics: LearnTopic[] = [
       "Leverage BuildKit secrets to avoid leaking credentials while installing private dependencies.",
       "Inspect build cache hits via `docker buildx build --progress=plain` to diagnose slow layers.",
     ],
-    image: "https://images.unsplash.com/photo-1521747116042-5a810fda9664?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/amber/rocket.svg",
     tintClass: "bg-amber-400/25",
   },
   {
@@ -109,7 +110,7 @@ const learnTopics: LearnTopic[] = [
       "Bind mount source code with `-v $(pwd):/workspace` to test changes without rebuilding.",
       "Map ports explicitly with `-p host:container` so health checks hit the right endpoint.",
     ],
-    image: "https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/terminal.svg",
     tintClass: "bg-indigo-500/25",
   },
   {
@@ -122,7 +123,7 @@ const learnTopics: LearnTopic[] = [
       "Use `docker login` before pushing to authenticated registries.",
       "Prune unused tags (`docker image prune`) to keep local disk usage in check.",
     ],
-    image: "https://images.unsplash.com/photo-1527430253228-e93688616381?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/red/cloud-upload.svg",
     tintClass: "bg-rose-500/30",
   },
 ];
@@ -137,26 +138,45 @@ export default function DashboardView({ labs }: DashboardViewProps) {
   );
 
   return (
-    <div className="space-y-16">
-      <section className="rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-lg md:p-12">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+      className="space-y-16"
+    >
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-lg transition-all hover:border-emerald-400/30 hover:shadow-xl hover:shadow-emerald-500/10 md:p-12"
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+          <div className="absolute -right-32 -top-32 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+        </div>
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="inline-flex rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
               Welcome back
             </span>
-            <h1 className="mt-4 text-3xl font-bold text-white md:text-4xl">Your Docker learning hub</h1>
+            <h1 className="mt-4 text-3xl font-bold md:text-4xl">
+              <span className="bg-gradient-to-r from-emerald-400 via-sky-400 to-violet-400 bg-clip-text text-transparent animate-gradient">
+                Your Docker learning hub
+              </span>
+            </h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-300 md:text-base">
               Continue a lab where you left off, or explore new lessons to deepen your container tooling knowledge.
             </p>
           </div>
-          <Link
-            href="/labs/lab1"
-            className="inline-flex items-center justify-center rounded-full border border-emerald-400 px-6 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/20 hover:text-white"
-          >
-            Resume lab
-          </Link>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+            <Link
+              href="/labs/lab1"
+              className="inline-flex items-center justify-center rounded-full border border-emerald-400 bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 px-6 py-3 text-sm font-semibold text-emerald-100 shadow-lg shadow-emerald-500/20 transition hover:border-emerald-300 hover:from-emerald-500/20 hover:to-emerald-600/20 hover:text-white"
+            >
+              Resume lab
+            </Link>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
       <section id="labs" className="space-y-6">
         <div className="flex items-center justify-between">
@@ -177,12 +197,21 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {orderedLabs.map((lab) => (
-              <article
+            {orderedLabs.map((lab, index) => (
+              <motion.article
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02, y: -8, rotateY: 3 }}
+                style={{ transformStyle: "preserve-3d", perspective: 1000 }}
                 key={lab.slug}
-                className="group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 p-7 shadow-lg backdrop-blur-xl transition hover:-translate-y-1 hover:border-sky-400/40 hover:shadow-xl"
+                className="group relative flex h-full min-h-[360px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/60 to-slate-900/40 p-7 shadow-lg backdrop-blur-xl transition hover:border-sky-400/40 hover:shadow-xl hover:shadow-sky-500/20"
               >
-                <div className="flex flex-1 flex-col gap-4">
+                <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+                  <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-sky-500/20 blur-3xl" />
+                  <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-violet-500/15 blur-3xl" />
+                </div>
+                <div className="relative z-10 flex flex-1 flex-col gap-4">
                   <span className="w-fit rounded-full border border-sky-400/40 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-100">
                     {lab.has_starter ? "Workspace ready" : "Hands-on practice"}
                   </span>
@@ -221,7 +250,8 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                     Launch lab
                   </Link>
                 </div>
-              </article>
+                </div>
+              </motion.article>
             ))}
           </div>
         )}
@@ -235,12 +265,17 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </p>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {learnTopics.map((topic) => (
-            <button
+          {learnTopics.map((topic, index) => (
+            <motion.button
               key={topic.id}
               type="button"
               onClick={() => setSelectedTopic(topic)}
-              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-6 text-left shadow-lg transition hover:-translate-y-1 hover:border-white/30 hover:shadow-xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: index * 0.05 }}
+              whileHover={{ scale: 1.05, y: -8, rotateX: 5 }}
+              style={{ transformStyle: "preserve-3d" }}
+              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/70 to-slate-900/50 p-6 text-left shadow-lg transition hover:border-white/30 hover:shadow-xl hover:shadow-sky-500/20"
             >
               <div
                 className="absolute inset-0 opacity-20 transition group-hover:opacity-40"
@@ -265,7 +300,7 @@ export default function DashboardView({ labs }: DashboardViewProps) {
                   </svg>
                 </span>
               </div>
-            </button>
+            </motion.button>
           ))}
         </div>
       </section>
@@ -302,6 +337,6 @@ export default function DashboardView({ labs }: DashboardViewProps) {
           </div>
         ) : null}
       </Modal>
-    </div>
+    </motion.div>
   );
 }
