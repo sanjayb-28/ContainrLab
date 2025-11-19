@@ -16,14 +16,14 @@ const features: Feature[] = [
     title: "Hands-on Docker practice",
     description: "Spin up real containers, edit files, and run the judge to validate your work—no local setup required.",
     badge: "Interactive",
-    image: "https://illustrations.popsy.co/amber/woman-working-on-laptop.svg",
-    tintClass: "bg-sky-500/25",
+    image: "/images/carousel/handson.png",
+    tintClass: "bg-emerald-500/25",
   },
   {
     title: "AI-guided coaching",
     description: "Gemini-powered hints, explanations, and patch suggestions help you unblock quickly while still learning.",
     badge: "AI Assist",
-    image: "https://illustrations.popsy.co/amber/artificial-intelligence.svg",
+    image: "/images/carousel/ai.png",
     tintClass: "bg-purple-500/25",
   },
   {
@@ -31,8 +31,8 @@ const features: Feature[] = [
     description:
       "Gain confidence with structured judge results, delta comparisons, and inspector timelines for every attempt.",
     badge: "Insights",
-    image: "https://illustrations.popsy.co/amber/analytics.svg",
-    tintClass: "bg-emerald-500/25",
+    image: "/images/carousel/progress.png",
+    tintClass: "bg-amber-500/25",
   },
 ];
 
@@ -53,11 +53,11 @@ export default function FeatureCarousel() {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6, delay: 0.4 }}
-      className="group relative mt-16 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-1 shadow-xl backdrop-blur transition-all hover:border-sky-400/30 hover:shadow-2xl hover:shadow-sky-500/10"
+      className="group relative mt-16 overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 p-1 shadow-xl backdrop-blur transition-all hover:border-emerald-400/30 hover:shadow-2xl hover:shadow-emerald-500/10"
     >
       <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100">
-        <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-sky-500/10 blur-3xl" />
-        <div className="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-purple-500/10 blur-3xl" />
+        <div className="absolute left-1/4 top-1/4 h-96 w-96 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl" />
       </div>
       <div className="relative flex min-h-[320px] flex-col justify-end overflow-hidden rounded-[28px] bg-cover bg-center p-8 text-white md:p-12">
         <AnimatePresence mode="wait">
