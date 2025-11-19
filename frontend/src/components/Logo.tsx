@@ -15,13 +15,16 @@ const sizeClasses: Record<NonNullable<LogoProps["size"]>, string> = {
 
 export default function Logo({ href = "/", size = "md" }: LogoProps) {
   const logo = (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-1.5">
       <div
         className={`flex ${sizeClasses[size]} items-center justify-center rounded-2xl border border-sky-400/40 bg-slate-900/80 text-white shadow-lg`}
       >
         <span className="font-black tracking-tight">CL</span>
       </div>
-      <span className="text-lg font-semibold text-white md:text-xl">ContainrLab</span>
+      <span className="text-lg font-bold tracking-[0.05em] text-slate-100 md:text-xl">
+        <span>Containr</span>
+        <span>Lab</span>
+      </span>
     </div>
   );
 

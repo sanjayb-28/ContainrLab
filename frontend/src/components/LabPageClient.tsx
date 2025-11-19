@@ -135,11 +135,11 @@ export default function LabPageClient({
           className="inline-block"
         >
           <Link
-            href="/"
+            href="/dashboard"
             className="btn-ripple card-shine inline-flex items-center gap-3 rounded-full border border-sky-400 bg-gradient-to-r from-sky-500/10 to-transparent px-5 py-2 text-sm font-semibold text-sky-100 shadow-lg shadow-sky-500/10 transition hover:border-sky-300 hover:from-sky-500/20 hover:text-white"
           >
             <span aria-hidden="true">&larr;</span>
-            Back to all labs
+            Back to dashboard
           </Link>
         </motion.div>
       </motion.nav>
