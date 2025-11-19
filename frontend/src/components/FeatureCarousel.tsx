@@ -16,14 +16,14 @@ const features: Feature[] = [
     title: "Hands-on Docker practice",
     description: "Spin up real containers, edit files, and run the judge to validate your work—no local setup required.",
     badge: "Interactive",
-    image: "https://images.unsplash.com/photo-1667372393119-3d4c48d07fc9?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/amber/software-engineer.svg",
     tintClass: "bg-sky-500/25",
   },
   {
     title: "AI-guided coaching",
     description: "Gemini-powered hints, explanations, and patch suggestions help you unblock quickly while still learning.",
     badge: "AI Assist",
-    image: "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/violet/ai.svg",
     tintClass: "bg-purple-500/25",
   },
   {
@@ -31,7 +31,7 @@ const features: Feature[] = [
     description:
       "Gain confidence with structured judge results, delta comparisons, and inspector timelines for every attempt.",
     badge: "Insights",
-    image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/green/data-analysis.svg",
     tintClass: "bg-emerald-500/25",
   },
 ];

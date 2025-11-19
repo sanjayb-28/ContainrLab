@@ -31,7 +31,7 @@ const learnTopics: LearnTopic[] = [
       "Images are immutable templates; containers are running instances created from those images.",
       "Docker CLI talks to the Docker daemon—either locally (our labs) or on a remote host.",
     ],
-    image: "https://images.unsplash.com/photo-1503736334956-4c8f8e92946d?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/server.svg",
     tintClass: "bg-sky-500/25",
   },
   {
@@ -44,7 +44,7 @@ const learnTopics: LearnTopic[] = [
       "Control groups (cgroups) enforce CPU, memory, and process limits for each container.",
       "Writable container layers sit on top of read-only image layers—destroy the container and that layer disappears.",
     ],
-    image: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/green/container.svg",
     tintClass: "bg-emerald-500/25",
   },
   {
@@ -58,7 +58,7 @@ const learnTopics: LearnTopic[] = [
       "COPY vs ADD: use COPY for predictable behaviour, ADD only when you need remote URLs or tar extraction.",
       "Set a HEALTHCHECK to give orchestration tools a reliable readiness signal.",
     ],
-    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/code.svg",
     tintClass: "bg-sky-400/25",
   },
   {
@@ -71,7 +71,7 @@ const learnTopics: LearnTopic[] = [
       "Use tags (ex: containrlab/web:1.0.0) to version your images for CI/CD.",
       "Stopped containers keep their writable layer until you remove them—remember to clean up!",
     ],
-    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/violet/version-control.svg",
     tintClass: "bg-violet-500/25",
   },
   {
@@ -84,7 +84,7 @@ const learnTopics: LearnTopic[] = [
       "Keep secrets out of compose files—reference environment variables or mounted secrets instead.",
       "Combine `depends_on` with healthchecks to ensure services start in the correct order.",
     ],
-    image: "https://images.unsplash.com/photo-1454165205744-3b78555e5572?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/green/teamwork.svg",
     tintClass: "bg-emerald-500/20",
   },
   {
@@ -97,7 +97,7 @@ const learnTopics: LearnTopic[] = [
       "Leverage BuildKit secrets to avoid leaking credentials while installing private dependencies.",
       "Inspect build cache hits via `docker buildx build --progress=plain` to diagnose slow layers.",
     ],
-    image: "https://images.unsplash.com/photo-1521747116042-5a810fda9664?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/amber/rocket.svg",
     tintClass: "bg-amber-400/25",
   },
   {
@@ -110,7 +110,7 @@ const learnTopics: LearnTopic[] = [
       "Bind mount source code with `-v $(pwd):/workspace` to test changes without rebuilding.",
       "Map ports explicitly with `-p host:container` so health checks hit the right endpoint.",
     ],
-    image: "https://images.unsplash.com/photo-1487058792275-0ad4aaf24ca7?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/blue/terminal.svg",
     tintClass: "bg-indigo-500/25",
   },
   {
@@ -123,7 +123,7 @@ const learnTopics: LearnTopic[] = [
       "Use `docker login` before pushing to authenticated registries.",
       "Prune unused tags (`docker image prune`) to keep local disk usage in check.",
     ],
-    image: "https://images.unsplash.com/photo-1527430253228-e93688616381?auto=format&fit=crop&w=1200&q=80",
+    image: "https://illustrations.popsy.co/red/cloud-upload.svg",
     tintClass: "bg-rose-500/30",
   },
 ];
