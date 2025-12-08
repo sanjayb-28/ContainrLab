@@ -39,7 +39,8 @@ services:
 
   runnerd:
     build:
-      context: ../runner/supervisor
+      context: ..
+      dockerfile: runner/supervisor/Dockerfile
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - runner_cache:/var/lib/docker
