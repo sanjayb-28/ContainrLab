@@ -1,9 +1,9 @@
 name: Deploy to Production
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual trigger
+  # push:
+  #   branches: [ main ]  # Disabled - app is frozen
+  workflow_dispatch:  # Manual trigger only
 
 env:
   AWS_REGION: us-east-1
