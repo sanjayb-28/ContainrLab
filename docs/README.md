@@ -1,10 +1,10 @@
-# 📚 ContainrLab Documentation
+# ContainrLab Documentation
 
-Welcome to the complete documentation for ContainrLab. Whether you're learning Docker, deploying to AWS, or contributing code, you'll find everything you need here.
+Complete documentation for ContainrLab. Whether you're learning Docker, deploying to AWS, or contributing code, you'll find everything you need here.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 <table>
 <tr>
@@ -33,9 +33,9 @@ Contributing or running locally:
 
 ---
 
-## 📖 Documentation by Purpose
+## Documentation by Purpose
 
-### 🎓 For Learners
+### For Learners
 
 Learn Docker through hands-on practice:
 
@@ -48,70 +48,55 @@ Learn Docker through hands-on practice:
 
 ---
 
-### 🏗️ For Understanding the System
+### Understanding the System
 
 Deep dive into how ContainrLab works:
 
 | Document | Description |
 |----------|-------------|
-| **[System Architecture](ARCHITECTURE.md)** | Complete system design and components |
-| **[System Diagram](diagrams/system-architecture.md)** | Visual overview of all components |
-| **[Session Lifecycle](diagrams/session-lifecycle.md)** | How user sessions work |
-| **[AWS Infrastructure](diagrams/aws-infrastructure.md)** | Production infrastructure diagram |
+| **[System Architecture](ARCHITECTURE.md)** | Complete system design, components, and diagrams |
 
 ---
 
-### ☁️ For Deployment
+### Deployment
 
-Deploy your own instance to AWS:
+Deploy your own instance to production:
 
 | Document | Description |
 |----------|-------------|
-| **[Deployment Guide](DEPLOYMENTS.md)** | Step-by-step AWS deployment |
-| **[CI/CD Setup](CI-CD-SETUP.md)** | Automated GitHub Actions deployment |
-| **[Secrets Management](SECRETS_MANAGEMENT.md)** | Managing secrets (local & AWS) |
-| **[AWS Infrastructure Details](AWS_INFRASTRUCTURE.md)** | Complete AWS resource breakdown |
+| **[Deployment Guide](DEPLOYMENT.md)** | Complete AWS deployment with CI/CD and secrets |
 
 ---
 
-### 🔧 For Development
+### Development
 
 Build and contribute to ContainrLab:
 
 | Document | Description |
 |----------|-------------|
 | **[Local Setup](LOCAL_SETUP.md)** | Complete local development environment |
-| **[Backend](../backend/)** | FastAPI service documentation |
-| **[Frontend](../frontend/)** | Next.js application documentation |
-| **[Runner](../runner/)** | Docker-in-Docker service |
-| **[Judge](../judge/)** | Lab validation system |
-| **[Compose Setup](../compose/)** | Docker Compose configuration |
+| **[Backend](../backend/README.md)** | FastAPI service documentation |
+| **[Frontend](../frontend/README.md)** | Next.js application documentation |
+| **[Runner](../runner/README.md)** | Docker-in-Docker service |
+| **[Judge](../judge/README.md)** | Lab validation system |
 
 ---
 
-## 🗺️ Documentation Structure
+## Documentation Structure
 
 ```
 docs/
 ├── README.md (you are here)          # Documentation hub
-├── ARCHITECTURE.md                   # System design
-├── LOCAL_SETUP.md                    # Local development
-├── DEPLOYMENTS.md                    # AWS deployment
-├── CI-CD-SETUP.md                    # GitHub Actions
-├── SECRETS_MANAGEMENT.md             # Secrets & config
-├── AWS_INFRASTRUCTURE.md             # AWS resources & cost
-└── diagrams/                         # Architecture diagrams
-    ├── system-architecture.md        # Complete system
-    ├── aws-infrastructure.md         # AWS resources
-    ├── deployment-flow.md            # CI/CD pipeline
-    └── session-lifecycle.md          # Session states
+├── ARCHITECTURE.md                   # System design + diagrams
+├── DEPLOYMENT.md                     # AWS deployment + CI/CD + secrets
+└── LOCAL_SETUP.md                    # Local development setup
 ```
 
 ---
 
-## 🎯 Quick Reference
+## Quick Reference
 
-### Live URLs
+### Production URLs
 
 - **Production:** [https://app.containrlab.click](https://app.containrlab.click)
 - **API:** [https://api.containrlab.click](https://api.containrlab.click)
@@ -121,11 +106,8 @@ docs/
 
 | Aspect | Details |
 |--------|---------|
-| **Region** | us-east-1 |
-| **Compute** | ECS Fargate (API/Web) + EC2 t3.medium (Runner) |
-| **Cost** | ~$93/month (optimized for 1-2 users) |
-| **Session TTL** | 30 minutes |
-| **Max Sessions** | 2 concurrent |
+| **Architecture** | ECS Fargate (API/Web) + ECS on EC2 (Runner) |
+| **Session TTL** | 45 minutes |
 | **Database** | SQLite (ephemeral) |
 
 ### Environment Variables
@@ -136,7 +118,8 @@ GITHUB_CLIENT_ID=xxx
 GITHUB_CLIENT_SECRET=xxx
 GEMINI_API_KEY=xxx
 RUNNERD_BASE_URL=http://runner:8080
-SESSION_TTL_SECONDS=1800
+SESSION_TTL_SECONDS=2700
+SESSION_CLEANUP_INTERVAL_SECONDS=60
 ```
 
 **Frontend (Next.js):**
@@ -148,11 +131,11 @@ NEXTAUTH_SECRET=xxx
 NEXTAUTH_URL=https://app.containrlab.click
 ```
 
-**[→ Complete secrets guide](SECRETS_MANAGEMENT.md)**
+**[View complete deployment guide →](DEPLOYMENT.md)**
 
 ---
 
-## 📊 Architecture Overview
+## Architecture Overview
 
 ### System Components
 
@@ -168,22 +151,22 @@ Runner (DinD)        Gemini AI
 Session Containers
 ```
 
-**[→ View detailed architecture diagram](diagrams/system-architecture.md)**
+**[View detailed architecture →](ARCHITECTURE.md)**
 
 ### Tech Stack
 
 | Layer | Technologies |
 |-------|-------------|
 | **Frontend** | Next.js 14, React 18, TailwindCSS, xterm.js, NextAuth |
-| **Backend** | FastAPI, Python 3.11, SQLite, Google Gemini AI |
+| **Backend** | FastAPI, Python 3.12, SQLite, Google Gemini AI |
 | **Infrastructure** | AWS ECS (Fargate + EC2), Docker, GitHub Actions, ECR, SSM |
 | **External** | GitHub OAuth, Google Gemini AI |
 
-**[→ View complete architecture](ARCHITECTURE.md)**
+**[View complete architecture →](ARCHITECTURE.md)**
 
 ---
 
-## 🛠️ Component Documentation
+## Component Documentation
 
 ### Core Services
 
@@ -198,30 +181,28 @@ Session Containers
 
 | Component | README | Description |
 |-----------|--------|-------------|
-| **Compose** | [compose/README.md](../compose/README.md) | Docker Compose for local development |
-| **Infrastructure** | [infra/README.md](../infra/README.md) | AWS configuration files |
+| **Infrastructure** | [infra/](../infra/) | AWS configuration files |
 | **Labs** | [labs/README.md](../labs/README.md) | Lab content and structure |
 
 ---
 
-## 🔍 Find What You Need
+## Find What You Need
 
 ### I want to...
 
 - **Learn Docker** → [Browse Labs](../labs/)
 - **Try it out** → [Live Demo](https://app.containrlab.click)
 - **Run locally** → [Local Setup](LOCAL_SETUP.md)
-- **Deploy to AWS** → [Deployment Guide](DEPLOYMENTS.md)
+- **Deploy to AWS** → [Deployment Guide](DEPLOYMENT.md)
 - **Understand how it works** → [Architecture](ARCHITECTURE.md)
-- **Contribute code** → [Local Setup](LOCAL_SETUP.md) + [Component Docs](#-component-documentation)
-- **Set up CI/CD** → [CI/CD Setup](CI-CD-SETUP.md)
-- **Manage secrets** → [Secrets Management](SECRETS_MANAGEMENT.md)
-- **See AWS costs** → [AWS Infrastructure](AWS_INFRASTRUCTURE.md)
+- **Contribute code** → [Local Setup](LOCAL_SETUP.md) + [Component Docs](#component-documentation)
+- **Set up CI/CD** → [Deployment Guide](DEPLOYMENT.md#option-1-automated-cicd-deployment-recommended)
+- **Manage secrets** → [Deployment Guide](DEPLOYMENT.md#secrets-management)
 - **Troubleshoot** → Check relevant component README
 
 ---
 
-## 📞 Getting Help
+## Getting Help
 
 ### Documentation Issues
 
@@ -238,7 +219,7 @@ Found something unclear or outdated?
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions to documentation!
 
@@ -254,11 +235,11 @@ We welcome contributions to documentation!
 - Use consistent formatting
 - Test all code examples
 
-**[→ Main Contributing Guide](../CONTRIBUTING.md)**
+**[View Contributing Guide →](../CONTRIBUTING.md)**
 
 ---
 
-## 📝 Documentation Index
+## Documentation Index
 
 ### Root Documentation
 - [Main README](../README.md) - Project overview and quick start
@@ -267,26 +248,15 @@ We welcome contributions to documentation!
 
 ### Core Documentation (docs/)
 - [README.md](README.md) - This file (documentation hub)
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and design
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture, design, and diagrams
+- [DEPLOYMENT.md](DEPLOYMENT.md) - AWS deployment, CI/CD, and secrets
 - [LOCAL_SETUP.md](LOCAL_SETUP.md) - Local development guide
-- [DEPLOYMENTS.md](DEPLOYMENTS.md) - AWS deployment guide
-- [CI-CD-SETUP.md](CI-CD-SETUP.md) - GitHub Actions configuration
-- [SECRETS_MANAGEMENT.md](SECRETS_MANAGEMENT.md) - Secrets and configuration
-- [AWS_INFRASTRUCTURE.md](AWS_INFRASTRUCTURE.md) - AWS resources and costs
-
-### Diagrams (docs/diagrams/)
-- [system-architecture.md](diagrams/system-architecture.md) - Complete system diagram
-- [aws-infrastructure.md](diagrams/aws-infrastructure.md) - AWS resources
-- [deployment-flow.md](diagrams/deployment-flow.md) - CI/CD pipeline
-- [session-lifecycle.md](diagrams/session-lifecycle.md) - Session state machine
 
 ### Component Documentation
 - [backend/README.md](../backend/README.md) - Backend API service
 - [frontend/README.md](../frontend/README.md) - Frontend application
 - [runner/README.md](../runner/README.md) - Runner service
 - [judge/README.md](../judge/README.md) - Judge system
-- [compose/README.md](../compose/README.md) - Docker Compose setup
-- [infra/README.md](../infra/README.md) - Infrastructure configs
 
 ### Lab Content
 - [labs/README.md](../labs/README.md) - Lab catalog
@@ -298,8 +268,8 @@ We welcome contributions to documentation!
 
 <div align="center">
 
-**[← Back to Main README](../README.md)** | **[View Architecture →](ARCHITECTURE.md)** | **[Deploy to AWS →](DEPLOYMENTS.md)**
+**[← Back to Main README](../README.md)** | **[View Architecture →](ARCHITECTURE.md)** | **[Deploy to AWS →](DEPLOYMENT.md)**
 
-Made with ❤️ for Docker learners
+Built for Docker learners
 
 </div>

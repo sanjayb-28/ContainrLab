@@ -36,3 +36,12 @@ coverage/
 docs/plan.txt
 docs/roadmap.txt
 .aws-credentials-for-github.txt
+
+# Planning and temporary files
+REFACTOR_PLAN.md
+scripts/deep_freeze.py
+scripts/deep_thaw.py
+docs/PAUSE_RESUME.md
+
+# Infrastructure state
+infra/

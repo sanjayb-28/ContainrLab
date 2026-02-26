@@ -1,6 +1,6 @@
 # Security Policy
 
-## 🔒 Secrets Management
+## Secrets Management
 
 ### Production Secrets
 All production secrets are stored in **AWS Systems Manager Parameter Store** and are never committed to the repository.
@@ -17,41 +17,42 @@ All production secrets are stored in **AWS Systems Manager Parameter Store** and
 - Other configuration values
 
 ### Local Development
-For local development, create `.env.local` files that are automatically ignored by git:
+For local development, secrets are stored in the `compose/secrets/` directory (gitignored):
 
-**frontend/.env.local** (example):
 ```bash
-GITHUB_CLIENT_ID=your-dev-client-id
-GITHUB_CLIENT_SECRET=your-dev-client-secret
-NEXTAUTH_SECRET=your-local-secret
-NEXTAUTH_URL=http://localhost:3000
+# Create secrets directory
+mkdir -p compose/secrets
+
+# Create secret files
+echo "your-github-client-id" > compose/secrets/GITHUB_CLIENT_ID.txt
+echo "your-github-client-secret" > compose/secrets/GITHUB_CLIENT_SECRET.txt
+echo "$(openssl rand -hex 32)" > compose/secrets/NEXTAUTH_SECRET.txt
+echo "your-gemini-api-key" > compose/secrets/GEMINI_API_KEY.txt  # Optional
 ```
 
-**compose/.env** (example):
-```bash
-# Same variables for docker-compose setup
-```
+These files are mounted as Docker secrets in `docker-compose.yml`.
 
 ### What's Safe in the Repository
 
 The following information is intentionally documented and **is NOT sensitive**:
 
-- ✅ AWS Account ID (`143353052888`) - Similar to a username
-- ✅ AWS Resource IDs (VPC, EC2, Load Balancers) - Just identifiers
-- ✅ ECS cluster names and task definition structures
+- ✅ Generic AWS service names (ECS, EC2, ALB)
+- ✅ ECS cluster naming patterns
+- ✅ Task definition structures
 - ✅ Architecture diagrams and deployment guides
 - ✅ Parameter **names** (not values)
 
 **Why these are safe:**
-- Resource IDs are not credentials
-- Someone would need valid AWS IAM credentials to access these resources
-- AWS security is based on IAM authentication, not resource ID secrecy
+- Service names and patterns are generic
+- No account-specific resource identifiers
+- AWS security is based on IAM authentication, not documentation
 
 ### Protected by .gitignore
 
-The following files contain secrets and are never committed:
+The following files and directories contain secrets and are never committed:
 
 ```
+compose/secrets/
 .env
 .env.local
 .env.*.local
@@ -59,7 +60,7 @@ The following files contain secrets and are never committed:
 *.key
 ```
 
-## 🛡️ Security Best Practices
+## Security Best Practices
 
 ### For Contributors
 
@@ -110,7 +111,7 @@ The following files contain secrets and are never committed:
      --force-new-deployment
    ```
 
-## 🚨 Reporting Security Issues
+## Reporting Security Issues
 
 If you discover a security vulnerability, please email:
 **sanjay.baskaran@colorado.edu**
@@ -120,7 +121,7 @@ If you discover a security vulnerability, please email:
 - Discuss in public channels
 - Share the vulnerability publicly
 
-## ✅ Security Checklist
+## Security Checklist
 
 Before making the repository public or sharing:
 
@@ -133,7 +134,7 @@ Before making the repository public or sharing:
 - [x] SSL/TLS enabled on all public endpoints
 - [x] Regular security updates for dependencies
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [AWS Secrets Management Best Practices](https://docs.aws.amazon.com/secretsmanager/latest/userguide/best-practices.html)
 - [NextAuth.js Security](https://next-auth.js.org/configuration/options#secret)
