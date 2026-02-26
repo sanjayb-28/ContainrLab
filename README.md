@@ -24,6 +24,12 @@
 
 ContainrLab is a production-grade containerization training platform leveraging Docker-in-Docker isolation, WebSocket-based terminal emulation, and Google Gemini AI integration. Deploy multi-stage Dockerfiles, orchestrate container lifecycles, and execute commands in ephemeral sandbox environments—all delivered through a browser-based interface with zero client-side dependencies. The platform implements automated test harnesses for instant feedback, AI-driven contextual assistance, and supports full container runtime operations without local infrastructure requirements.
 
+<div align="center">
+<img src="docs/images/mlh-showcase.png" alt="MLH Global Hack Week Showcase" width="600">
+<br>
+<em>Showcased at MLH Global Hack Week</em>
+</div>
+
 ---
 
 ## Key Features
