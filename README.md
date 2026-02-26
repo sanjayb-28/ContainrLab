@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🐳 ContainrLab
+# ContainrLab
 
-**Learn Docker through interactive, hands-on labs with AI-powered guidance**
+**Cloud-native containerization training environment with real-time validation and LLM-assisted development**
 
 [![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge&logo=docker)](https://app.containrlab.click)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
-[![CI/CD](https://img.shields.io/badge/AWS-deployed-orange?style=for-the-badge&logo=amazon-aws)](https://github.com/sanjayb-28/ContainrLab/actions)
+[![CI/CD](https://img.shields.io/badge/AWS-paused-gray?style=for-the-badge&logo=amazon-aws)](https://github.com/sanjayb-28/ContainrLab/actions)
 
 [🚀 Try Live Demo](https://app.containrlab.click) • [📖 Documentation](docs/) • [🎓 Browse Labs](labs/) • [🏗️ Architecture](docs/ARCHITECTURE.md)
 
@@ -22,22 +22,43 @@
 
 ## What is ContainrLab?
 
-ContainrLab is an **interactive Docker learning platform** where you write real Dockerfiles, build images, and run containers in isolated environments. Get instant feedback from automated judges and AI-powered hints when you're stuck. No local setup required—everything runs in your browser.
+ContainrLab is a production-grade containerization training platform leveraging Docker-in-Docker isolation, WebSocket-based terminal emulation, and Google Gemini AI integration. Deploy multi-stage Dockerfiles, orchestrate container lifecycles, and execute commands in ephemeral sandbox environments—all delivered through a browser-based interface with zero client-side dependencies. The platform implements automated test harnesses for instant feedback, AI-driven contextual assistance, and supports full container runtime operations without local infrastructure requirements.
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **🐳 Hands-On Labs** - Write real Docker code, not multiple-choice quizzes → [View Labs](labs/)
-- **⚡ Instant Validation** - Automated judges test your solutions in real-time → [How it works](docs/ARCHITECTURE.md#judge-system)
-- **🤖 AI Assistant** - Get contextual hints from Google Gemini when stuck → [Learn more](docs/ARCHITECTURE.md#ai-integration)
-- **🖥️ Browser Terminal** - Full bash terminal with Docker-in-Docker → [Architecture](docs/ARCHITECTURE.md#runner-service)
-- **📁 Code Editor** - Edit Dockerfiles and application code in real-time → [See UI](https://app.containrlab.click)
-- **🔐 Secure & Isolated** - Each session runs in its own container with resource limits → [Security model](docs/ARCHITECTURE.md#security-model)
+- **Hands-On Labs** - Write real Docker code with practical, project-based exercises → [View Labs](labs/)
+- **Instant Validation** - Automated judges test your solutions in real-time → [How it works](docs/ARCHITECTURE.md#judge-automated-validation)
+- **AI Assistant** - Contextual hints powered by Google Gemini → [Learn more](docs/ARCHITECTURE.md)
+- **Browser Terminal** - Full bash terminal with Docker-in-Docker capabilities → [Architecture](docs/ARCHITECTURE.md#runnerd-container-orchestrator)
+- **Integrated Editor** - Edit Dockerfiles and application code directly in the browser → [See UI](https://app.containrlab.click)
+- **Secure Isolation** - Individual containers with resource limits for each session → [Security model](docs/ARCHITECTURE.md#security-architecture)
 
 ---
 
-## 🏗️ How It Works
+## How It Works
+
+### Session Lifecycle
+
+1. **Start Lab** → User selects lab, API creates session record in database
+2. **Spawn Environment** → RunnerD orchestrates isolated Docker container with Docker-in-Docker
+3. **Interactive Terminal** → WebSocket establishes real-time bidirectional connection
+4. **Code & Build** → User writes Dockerfiles, builds images, runs containers in sandbox
+5. **Automated Validation** → Judge executes test harness against solution requirements
+6. **Session Cleanup** → Environment auto-expires after timeout, resources freed
+
+### Security Model
+
+- **Isolation:** Each session runs in isolated Docker container with separate network namespace
+- **Resource Limits:** CPU and memory constraints enforced per session container
+- **Network Isolation:** Sessions cannot communicate with each other
+- **Authentication:** GitHub OAuth with NextAuth.js session management
+- **Secrets:** Environment variables injected at runtime from secure parameter store
+
+---
+
+## Architecture Overview
 
 ```mermaid
 graph TB
@@ -56,28 +77,54 @@ graph TB
     style Judge fill:#9b59b6,color:#fff
 ```
 
-**[→ View detailed system architecture](docs/diagrams/system-architecture.md)**
+**[View detailed system architecture →](docs/ARCHITECTURE.md)**
 
 ---
 
-## 🚀 Quick Start
+## Production Infrastructure
 
-### Option 1: Try Live (Fastest)
+### Cloud Architecture
 
-No installation needed. Sign in with GitHub and start learning immediately.
+- **ECS Fargate** for stateless services (API, Web)
+- **ECS on EC2** for privileged workloads (Runner with Docker-in-Docker)
+- **Application Load Balancer** for HTTPS traffic routing and SSL termination
+- **Container Registry** for Docker image storage and distribution
+- **Managed Secrets Storage** for secure environment variable injection
+
+### Resource Allocation
+
+- **API/Web:** Serverless compute with auto-scaling based on demand
+- **Runner:** Dedicated compute instances with container orchestration
+- **Session Isolation:** 1.5GB RAM, 1 vCPU per sandbox environment
+- **Session Timeout:** 45-minute auto-expiration with grace period
+
+### Deployment Architecture
+
+- **Region:** Multi-AZ deployment in US East for high availability
+- **Images:** AMD64 (x86_64) architecture for cross-platform compatibility
+- **CI/CD:** Automated build, test, and deployment via GitHub Actions
+- **Infrastructure:** Optimized for low-volume production workloads
+
+---
+
+## Getting Started
+
+### Option 1: Live Demo
+
+No installation required. Access the platform immediately with GitHub authentication.
 
 ```
 1. Visit https://app.containrlab.click
 2. Sign in with GitHub OAuth
-3. Choose a lab (start with Lab 1)
-4. Click "Start Session" → you get a live terminal!
+3. Select a lab (Lab 1 recommended for beginners)
+4. Click "Start Session" to launch your isolated environment
 ```
 
-**[→ Start Learning Now](https://app.containrlab.click)**
+**[Start Learning →](https://app.containrlab.click)**
 
 ---
 
-### Option 2: Run Locally (Development)
+### Option 2: Local Development
 
 Run the full stack on your machine with Docker Compose.
 
@@ -87,8 +134,8 @@ Run the full stack on your machine with Docker Compose.
 **Prerequisites:**
 - Docker Desktop
 - Node.js 20+
-- Python 3.11+
-- GitHub OAuth app ([setup guide](docs/CI-CD-SETUP.md#github-oauth))
+- Python 3.12+
+- GitHub OAuth app ([setup guide](docs/LOCAL_SETUP.md#step-2-create-github-oauth-app))
 
 **Quick Start:**
 ```bash
@@ -107,60 +154,61 @@ docker compose -f compose/docker-compose.yml up
 # Access at http://localhost:3000
 ```
 
-**[→ Full local setup guide](docs/LOCAL_SETUP.md)**
+**[View complete setup guide →](docs/LOCAL_SETUP.md)**
 
 </details>
 
 ---
 
-### Option 3: Deploy to AWS (Production)
+### Option 3: AWS Deployment
 
-Deploy your own instance to AWS ECS with automated CI/CD.
+Deploy a production instance to AWS ECS with automated CI/CD pipelines.
 
 <details>
 <summary><b>☁️ Click to expand AWS deployment</b></summary>
 
 **What you'll deploy:**
-- ECS Fargate for API & Web (ARM64)
+- ECS Fargate for API & Web (AMD64)
 - EC2 for Runner (Docker-in-Docker)
 - Application Load Balancer with HTTPS
 - Automated GitHub Actions deployment
 
-**Cost:** ~$93/month (optimized for 1-2 concurrent users)
-
 **Time:** 2-3 hours for initial setup
 
-**[→ Complete deployment guide](docs/DEPLOYMENTS.md)**
+| **Region** | US East (Multi-AZ) |
+| **Compute** | ECS Fargate (API/Web) + ECS on EC2 (Runner) |
+| **Architecture** | AMD64 (x86_64) for all services |
+| **Session TTL** | 45 minutes |
 
-**[→ View AWS infrastructure diagram](docs/diagrams/aws-infrastructure.md)**
+**[View deployment guide →](docs/DEPLOYMENT.md)**
 
 </details>
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 | Category | Documentation |
 |----------|---------------|
-| **🚀 Getting Started** | [Quick Start](#-quick-start) \| [Local Setup](docs/LOCAL_SETUP.md) \| [FAQs](docs/) |
-| **🏗️ Architecture** | [System Design](docs/ARCHITECTURE.md) \| [AWS Infrastructure](docs/diagrams/aws-infrastructure.md) \| [Diagrams](docs/diagrams/) |
-| **☁️ Deployment** | [AWS Deployment](docs/DEPLOYMENTS.md) \| [CI/CD Setup](docs/CI-CD-SETUP.md) \| [Secrets Management](docs/SECRETS_MANAGEMENT.md) |
-| **🔧 Development** | [Backend](backend/) \| [Frontend](frontend/) \| [Runner](runner/) \| [Judge](judge/) |
-| **🎓 Labs** | [Lab Catalog](labs/) \| [Lab 1](labs/lab1/) \| [Lab 2](labs/lab2/) \| [Lab 3](labs/lab3/) |
+| **Getting Started** | [Quick Start](#getting-started) \| [Local Setup](docs/LOCAL_SETUP.md) |
+| **Architecture** | [System Design](docs/ARCHITECTURE.md) |
+| **Deployment** | [AWS Deployment](docs/DEPLOYMENT.md) |
+| **Development** | [Backend](backend/README.md) \| [Frontend](frontend/README.md) \| [Runner](runner/README.md) \| [Judge](judge/README.md) |
+| **Labs** | [Lab Catalog](labs/) \| [Lab 1](labs/lab1/) \| [Lab 2](labs/lab2/) \| [Lab 3](labs/lab3/) |
 
-**[→ Browse all documentation](docs/)**
+**[Browse all documentation →](docs/)**
 
 ---
 
-## 🎓 Labs
+## Lab Curriculum
 
-Progressive curriculum from beginner to advanced:
+Progressive learning path from beginner to advanced concepts:
 
 | Lab | Title | Difficulty | What You'll Learn |
 |-----|-------|------------|-------------------|
-| [Lab 1](labs/lab1/) | 🐳 First Dockerfile | ⭐ Beginner | Create a simple web service container from scratch |
-| [Lab 2](labs/lab2/) | ⚡ Layer Caching | ⭐⭐ Intermediate | Optimize builds with proper layer ordering |
-| [Lab 3](labs/lab3/) | 🏗️ Multi-stage Builds | ⭐⭐⭐ Advanced | Reduce image size with multi-stage Dockerfiles |
+| [Lab 1](labs/lab1/) | First Dockerfile | Beginner | Create a simple web service container from scratch |
+| [Lab 2](labs/lab2/) | Layer Caching | Intermediate | Optimize builds with proper layer ordering |
+| [Lab 3](labs/lab3/) | Multi-stage Builds | Advanced | Reduce image size with multi-stage Dockerfiles |
 
 **Each lab includes:**
 - Clear requirements and learning objectives
@@ -169,51 +217,61 @@ Progressive curriculum from beginner to advanced:
 - AI-powered hints when you're stuck
 - Reference solution with explanations
 
-**[→ View complete lab catalog](labs/)**
+**[View complete lab catalog →](labs/)**
 
 ---
 
-## 🛠️ Tech Stack
+## Technology Stack
 
 <table>
 <tr>
 <td valign="top" width="33%">
 
 ### Frontend
-- ⚛️ **Next.js 14** - React framework
-- 🎨 **TailwindCSS** - Styling
-- 🖥️ **xterm.js** - Terminal emulator
-- 🔐 **NextAuth** - Authentication
+- **Next.js 14** - React framework
+- **TailwindCSS** - Styling system
+- **xterm.js** - Terminal emulator
+- **NextAuth** - Authentication
 
 </td>
 <td valign="top" width="33%">
 
 ### Backend
-- ⚡ **FastAPI** - Python API framework
-- 🐍 **Python 3.11** - Backend logic
-- 💾 **SQLite** - Session storage
-- 🤖 **Gemini AI** - Intelligent hints
-- 🔌 **WebSockets** - Real-time terminal
+- **FastAPI** - Python API framework
+- **Python 3.12** - Backend runtime
+- **SQLite** - Session storage
+- **Gemini AI** - Intelligent hints
+- **WebSockets** - Real-time terminal communication
 
 </td>
 <td valign="top" width="33%">
 
 ### Infrastructure
-- ☁️ **AWS ECS** - Container orchestration
-- 🐳 **Docker** - Containerization
-- 🔄 **GitHub Actions** - CI/CD automation
-- 📦 **Amazon ECR** - Image registry
-- 🔑 **AWS SSM** - Secrets management
+- **AWS ECS** - Container orchestration
+- **Docker** - Containerization platform
+- **GitHub Actions** - CI/CD automation
+- **Amazon ECR** - Container image registry
+- **AWS SSM** - Secrets management
 
 </td>
 </tr>
 </table>
 
-**[→ View detailed architecture](docs/ARCHITECTURE.md)**
+### System Components
+
+| Component | Technology | Purpose | Architecture |
+|-----------|------------|---------|---------------|
+| **Web UI** | Next.js 14, TailwindCSS, xterm.js | Frontend interface + terminal emulation | Server-side rendering, WebSocket client |
+| **API** | FastAPI, Python 3.12, SQLite | REST API, session management | Async endpoints, connection pooling |
+| **RunnerD** | Python, Docker SDK | Container orchestration supervisor | Event loop, Docker daemon communication |
+| **Runner** | Docker-in-Docker, Bash | Isolated sandbox environments | Privileged containers, nested Docker |
+| **Judge** | Python | Automated solution validation | Pluggable test harnesses |
+
+**[View detailed architecture →](docs/ARCHITECTURE.md)**
 
 ---
 
-## 🌟 Why ContainrLab?
+## Why ContainrLab?
 
 | Traditional Learning | ContainrLab |
 |---------------------|-------------|
@@ -225,21 +283,21 @@ Progressive curriculum from beginner to advanced:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Areas where we'd love help:
+Contributions are welcome! Key areas for contribution:
 
-- 📚 **New Labs** - Create Docker learning content
-- 🐛 **Bug Fixes** - Fix issues, improve stability  
-- ✨ **Features** - Add new capabilities
-- 📖 **Documentation** - Improve guides and examples
-- 🧪 **Testing** - Increase test coverage
+- **New Labs** - Create additional Docker learning content
+- **Bug Fixes** - Resolve issues and improve stability
+- **Features** - Develop new platform capabilities
+- **Documentation** - Enhance guides and examples
+- **Testing** - Expand test coverage
 
-**[→ Read the full Contributing Guide](CONTRIBUTING.md)**
+**[Read the Contributing Guide →](CONTRIBUTING.md)**
 
 ---
 
-## 📊 Project Status
+## Project Status
 
 - ✅ **Production:** Fully deployed at [app.containrlab.click](https://app.containrlab.click)
 - ✅ **CI/CD:** Automated testing and deployment via GitHub Actions
@@ -248,37 +306,26 @@ We welcome contributions! Areas where we'd love help:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Support
 
-Built with:
-- [Google Gemini](https://ai.google.dev/) - AI-powered learning assistance
-- [Docker](https://www.docker.com/) - Containerization platform
-- [AWS](https://aws.amazon.com/) - Cloud infrastructure
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python API framework
-- [Next.js](https://nextjs.org/) - React framework for production
-
----
-
-## 📞 Support & Community
-
-- 🐛 **Issues:** [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
-- 📧 **Email:** sanjay.baskaran@colorado.edu
+- **Issues:** [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
+- **Email:** sanjay.baskaran@colorado.edu
 
 ---
 
 <div align="center">
 
-**Made with ❤️ by [Sanjay Baskaran](https://github.com/sanjayb-28)**
+**Developed by [Sanjay Baskaran](https://github.com/sanjayb-28)**
 
-⭐ **Star this repo if you find it helpful!**
+⭐ Star this repository if you find it helpful
 
-[🚀 Start Learning Docker](https://app.containrlab.click) • [📖 Read the Docs](docs/) • [🎓 Browse Labs](labs/)
+[Start Learning →](https://app.containrlab.click) • [Documentation](docs/) • [Browse Labs](labs/)
 
 </div>

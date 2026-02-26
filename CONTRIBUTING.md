@@ -1,4 +1,4 @@
-# 🤝 Contributing to ContainrLab
+# Contributing to ContainrLab
 
 Thank you for your interest in contributing to ContainrLab! We welcome contributions from everyone, whether you're fixing bugs, adding features, creating labs, or improving documentation.
 
@@ -33,7 +33,7 @@ Before contributing, please:
 
 - Docker Desktop
 - Node.js 20+
-- Python 3.11+
+- Python 3.12+
 - Git
 
 ### Local Setup
@@ -42,9 +42,6 @@ Before contributing, please:
 # Clone your fork
 git clone https://github.com/YOUR-USERNAME/ContainrLab.git
 cd ContainrLab
-
-# Set up environment
-cp .env.example .env  # Edit with your values
 
 # Set up secrets for local development
 mkdir -p compose/secrets
@@ -58,13 +55,13 @@ docker compose -f compose/docker-compose.yml up
 # Access at http://localhost:3000
 ```
 
-**[→ Full local setup guide](docs/LOCAL_SETUP.md)**
+**[View complete setup guide →](docs/LOCAL_SETUP.md)**
 
 ---
 
 ## How to Contribute
 
-### 🐛 Report Bugs
+### Report Bugs
 
 Found a bug? [Create an issue](https://github.com/sanjayb-28/ContainrLab/issues/new) with:
 
@@ -74,7 +71,7 @@ Found a bug? [Create an issue](https://github.com/sanjayb-28/ContainrLab/issues/
 - Screenshots if applicable
 - Your environment (OS, browser, Docker version)
 
-### ✨ Suggest Features
+### Suggest Features
 
 Have an idea? [Start a discussion](https://github.com/sanjayb-28/ContainrLab/discussions/new) to:
 
@@ -83,11 +80,11 @@ Have an idea? [Start a discussion](https://github.com/sanjayb-28/ContainrLab/dis
 - Discuss alternative approaches
 - Get community feedback
 
-### 📚 Create Labs
+### Create Labs
 
 New Docker labs are always welcome! See [Creating New Labs](#creating-new-labs) below.
 
-### 🔧 Fix Issues
+### Fix Issues
 
 1. **Find an issue** - Look for `good first issue` or `help wanted` labels
 2. **Comment** - Let us know you're working on it
@@ -221,7 +218,7 @@ Explain the Docker concept you're teaching...
 ## Requirements
 Your Dockerfile must:
 - [ ] Use Alpine Linux as base image
-- [ ] Install Python 3.11
+- [ ] Install Python 3.12
 - [ ] Copy application files
 - [ ] Expose port 8000
 - [ ] Set proper CMD
@@ -251,7 +248,7 @@ workspace/
 
 ```dockerfile
 # solution/Dockerfile
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 
 WORKDIR /app
 
@@ -293,11 +290,11 @@ def validate_dockerfile(dockerfile_path: str) -> dict:
         content = f.read()
     
     # Check base image
-    if "FROM python:3.11-alpine" in content:
+    if "FROM python:3.12-alpine" in content:
         feedback.append("✅ Correct base image")
         score += 20
     else:
-        errors.append("❌ Must use python:3.11-alpine as base image")
+        errors.append("❌ Must use python:3.12-alpine as base image")
     
     # Check WORKDIR
     if "WORKDIR" in content:
@@ -395,9 +392,9 @@ If applicable, add screenshots
 
 ### Communication
 
-- 💬 **GitHub Discussions** - Questions, ideas, help
-- 🐛 **GitHub Issues** - Bug reports, feature requests
-- 📧 **Email** - sanjay.baskaran@colorado.edu for private matters
+- **GitHub Discussions** - Questions, ideas, help
+- **GitHub Issues** - Bug reports, feature requests
+- **Email** - sanjay.baskaran@colorado.edu for private matters
 
 ### Recognition
 
@@ -452,10 +449,10 @@ npm test
 
 ## Questions?
 
-- 📖 **Documentation** - Check [docs/](docs/)
-- 💬 **Discussions** - [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
-- 🐛 **Issues** - [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
-- 📧 **Email** - sanjay.baskaran@colorado.edu
+- **Documentation** - Check [docs/](docs/)
+- **Discussions** - [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
+- **Issues** - [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
+- **Email** - sanjay.baskaran@colorado.edu
 
 ---
 
@@ -467,8 +464,8 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 <div align="center">
 
-**Thank you for contributing to ContainrLab! 🎉**
+**Thank you for contributing to ContainrLab!**
 
-Made with ❤️ by our amazing contributors
+Built by our amazing contributors
 
 </div>

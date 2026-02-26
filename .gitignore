@@ -41,6 +41,7 @@ docs/roadmap.txt
 REFACTOR_PLAN.md
 scripts/deep_freeze.py
 scripts/deep_thaw.py
+docs/PAUSE_RESUME.md
 
 # Infrastructure state
 infra/

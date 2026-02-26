@@ -1,41 +1,17 @@
-# 🔧 Runner Service
+# Runner Service
 
-Docker-in-Docker service for isolated lab environments in ContainrLab.
+Docker-in-Docker service for isolated lab environments.
 
 ---
 
 ## Overview
 
-The Runner service (RunnerD) provides isolated Docker-in-Docker containers for each user session, enabling:
+RunnerD provides isolated Docker-in-Docker containers for each user session, enabling:
 - Safe Docker command execution
 - Isolated lab environments
 - File system access
-- Terminal access
+- Terminal access via WebSocket
 - Container lifecycle management
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────┐
-│         RunnerD Service (Port 8080)             │
-│  ┌──────────────────────────────────┐ │
-│  │    Session Manager                 │ │
-│  └──────────────────────────────────┘ │
-│                   │                          │
-│  ┌─────────────┴───────────────────────┐│
-│  │   Docker-in-Docker Sessions        ││
-│  │  ┌───────────────────────────────┐ ││
-│  │  │  Session Container (sess-abc123) │ ││
-│  │  │  - Docker daemon              │ ││
-│  │  │  - User workspace (/workspace)│ ││
-│  │  │  - Bash terminal              │ ││
-│  │  │  - 1.5GB RAM, 1 vCPU          │ ││
-│  │  └───────────────────────────────┘ ││
-│  └─────────────────────────────────────┘│
-└─────────────────────────────────────────┘
-```
 
 ---
 
@@ -43,33 +19,23 @@ The Runner service (RunnerD) provides isolated Docker-in-Docker containers for e
 
 ### Session Management
 
-#### Create Session
+**Create Session:**
 ```http
 POST /sessions
 Content-Type: application/json
 
 {
   "session_id": "sess-abc123",
-  "ttl_seconds": 1800
+  "ttl_seconds": 2700
 }
 ```
 
-**Response:**
-```json
-{
-  "session_id": "sess-abc123",
-  "container_name": "sess-abc123",
-  "created_at": "2025-10-27T22:00:00Z",
-  "expires_at": "2025-10-27T22:30:00Z"
-}
-```
-
-#### Get Session Info
+**Get Session:**
 ```http
 GET /sessions/{session_id}
 ```
 
-#### Delete Session
+**Delete Session:**
 ```http
 DELETE /sessions/{session_id}
 ```
@@ -78,7 +44,7 @@ DELETE /sessions/{session_id}
 
 ### Docker Operations
 
-#### Build Image
+**Build Image:**
 ```http
 POST /sessions/{session_id}/build
 Content-Type: application/json
@@ -90,19 +56,7 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
-{
-  "image_tag": "my-image:latest",
-  "logs": ["Step 1/5 : FROM python:3.11-slim", "..."],
-  "metrics": {
-    "image_size_mb": 185.2,
-    "elapsed_seconds": 12.5
-  }
-}
-```
-
-#### Run Container
+**Run Container:**
 ```http
 POST /sessions/{session_id}/run
 Content-Type: application/json
@@ -110,39 +64,18 @@ Content-Type: application/json
 {
   "image": "my-image:latest",
   "ports": ["8080:8080"],
-  "detach": true,
-  "auto_remove": false
+  "detach": true
 }
 ```
 
-#### Stop Container
-```http
-POST /sessions/{session_id}/stop
-Content-Type: application/json
-
-{
-  "container_name": "my-container",
-  "timeout": 10,
-  "remove": true
-}
-```
-
-#### Execute Command
+**Execute Command:**
 ```http
 POST /sessions/{session_id}/exec
 Content-Type: application/json
 
 {
-  "command": ["ls", "-la", "/workspace"],
+  "command": ["ls", "-la"],
   "workdir": "/workspace"
-}
-```
-
-**Response:**
-```json
-{
-  "exit_code": 0,
-  "logs": ["total 12", "drwxr-xr-x  3 root root 4096 Oct 27 22:00 .", "..."]
 }
 ```
 
@@ -150,306 +83,76 @@ Content-Type: application/json
 
 ### File Operations
 
-#### List Files
+**List Files:**
 ```http
-GET /sessions/{session_id}/files?path=/workspace
+GET /files?session_id={session_id}&path=/workspace
 ```
 
-#### Read File
+**Read File:**
 ```http
-GET /sessions/{session_id}/files/workspace/Dockerfile
+GET /files/{path}?session_id={session_id}
 ```
 
-#### Write File
+**Write File:**
 ```http
-PUT /sessions/{session_id}/files/workspace/app.py
+PUT /files/{path}?session_id={session_id}
 Content-Type: application/json
 
 {
-  "content": "print('Hello, World!')"
+  "content": "file contents here"
 }
 ```
 
-#### Delete File
+**Delete File:**
 ```http
-DELETE /sessions/{session_id}/files/workspace/app.py
+DELETE /files/{path}?session_id={session_id}
 ```
 
 ---
 
-### Terminal
+### Terminal WebSocket
 
-#### WebSocket Terminal
-```http
-GET /sessions/{session_id}/terminal/ws
-Upgrade: websocket
+**Connect:**
+```
+ws://localhost:8080/sessions/{session_id}/terminal/ws
 ```
 
-Provides interactive bash terminal in the session container.
-
----
-
-## Session Lifecycle
-
-```
-1. Backend requests session creation
-       ↓
-2. RunnerD spawns DinD container
-   - Name: sess-{session_id}
-   - Image: containrlab-runner:latest
-   - Resources: 1.5GB RAM, 1 vCPU
-   - TTL: 30 minutes
-       ↓
-3. Session container starts
-   - Docker daemon initializes
-   - /workspace directory created
-   - Bash shell ready
-       ↓
-4. User interacts via:
-   - Terminal (WebSocket)
-   - File operations (HTTP API)
-   - Docker commands (HTTP API)
-       ↓
-5. Session expires or user ends it
-       ↓
-6. RunnerD stops and removes container
-   - All data cleaned up
-   - Resources freed
+**Messages:**
+```json
+{"type": "input", "data": "ls -la\n"}
+{"type": "resize", "rows": 24, "cols": 80}
 ```
 
 ---
 
-## Configuration
-
-### Environment Variables
+## Environment Variables
 
 ```bash
-# Session settings
-SESSION_TTL_SECONDS=1800          # Default session duration (30 min)
-
-# Container resources
-CONTAINER_MEMORY_LIMIT=1536m      # Memory limit per session
-CONTAINER_CPU_LIMIT=1             # CPU cores per session
-
-# Cleanup settings
-CLEANUP_INTERVAL_SECONDS=300      # How often to check for expired sessions
+# Session configuration
+SESSION_TTL_SECONDS=2700          # Default session duration (45 min)
+SESSION_CLEANUP_INTERVAL_SECONDS=300  # Cleanup job interval
+RUNNER_MEMORY=1536m               # Memory per session container
 ```
-
-### Docker Socket
-
-RunnerD requires access to the Docker daemon:
-
-**Local Development:**
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-privileged: true
-```
-
-**AWS ECS (EC2):**
-- EC2 instance runs Docker
-- RunnerD task runs on EC2 (not Fargate)
-- Socket mounted from host
 
 ---
 
-## Development
-
-### Running Locally
+## Local Testing
 
 ```bash
-# Using Docker Compose
-docker compose -f compose/docker-compose.yml up runner
+# Run RunnerD locally
+cd runner/supervisor
+python -m uvicorn main:app --reload --port 8080
 
-# Or run standalone
-docker build -t containrlab-runner runner/
-docker run -p 8080:8080 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  --privileged \
-  containrlab-runner
-```
-
-### Testing
-
-```bash
-# Create a test session
+# Test session creation
 curl -X POST http://localhost:8080/sessions \
   -H "Content-Type: application/json" \
-  -d '{"session_id": "test-123", "ttl_seconds": 1800}'
-
-# Execute a command
-curl -X POST http://localhost:8080/sessions/test-123/exec \
-  -H "Content-Type: application/json" \
-  -d '{"command": ["echo", "Hello, World!"]}'
-
-# Clean up
-curl -X DELETE http://localhost:8080/sessions/test-123
+  -d '{"session_id": "test-123", "ttl_seconds": 2700}'
 ```
-
----
-
-## Security
-
-### Container Isolation
-
-- Each session runs in isolated container
-- No network access between sessions
-- Resource limits enforced (CPU, memory)
-- Automatic cleanup on expiry
-
-### Privileged Mode
-
-Runner requires privileged mode for Docker-in-Docker:
-```yaml
-privileged: true
-```
-
-**Why it's safe:**
-- Runs on dedicated EC2 instance
-- Not exposed to internet (behind ALB)
-- Backend validates all requests
-- Sessions are time-limited
-
-### Docker Socket
-
-Direct Docker socket access is required:
-```yaml
-volumes:
-  - /var/run/docker.sock:/var/run/docker.sock
-```
-
-**Security measures:**
-- Only backend can access runner
-- Session IDs are validated
-- Commands are sanitized
-- Containers have resource limits
-
----
-
-## Monitoring
-
-### Health Check
-
-```http
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "active_sessions": 2,
-  "docker_available": true
-}
-```
-
-### Metrics
-
-- Active session count
-- Docker daemon status
-- Container resource usage
-- Session creation/cleanup rate
-
----
-
-## Troubleshooting
-
-### Docker daemon not available
-```bash
-# Check Docker is running
-docker ps
-
-# Check socket permissions
-ls -la /var/run/docker.sock
-
-# Restart Docker
-sudo systemctl restart docker
-```
-
-### Session container won't start
-```bash
-# Check available resources
-docker stats
-
-# Check Docker logs
-docker logs sess-{session_id}
-
-# Manually remove stuck container
-docker rm -f sess-{session_id}
-```
-
-### Out of memory
-```bash
-# Check memory usage
-free -h
-
-# Check container limits
-docker inspect sess-{session_id} | grep -i memory
-
-# Clean up old containers
-docker container prune -f
-```
-
----
-
-## Production Deployment
-
-### AWS ECS (EC2)
-
-**Requirements:**
-- EC2 instance with Docker
-- ECS-optimized AMI
-- IAM role with ECR permissions
-- Security group allowing port 8080
-
-**Task Definition:**
-```json
-{
-  "family": "containrlab-runner",
-  "requiresCompatibilities": ["EC2"],
-  "cpu": "1024",
-  "memory": "2048",
-  "containerDefinitions": [
-    {
-      "name": "runner",
-      "image": "{ecr-url}/containrlab-runner:latest",
-      "essential": true,
-      "privileged": true,
-      "portMappings": [{"hostPort": 8080, "containerPort": 8080}],
-      "mountPoints": [
-        {
-          "sourceVolume": "docker-socket",
-          "containerPath": "/var/run/docker.sock"
-        }
-      ]
-    }
-  ],
-  "volumes": [
-    {
-      "name": "docker-socket",
-      "host": {"sourcePath": "/var/run/docker.sock"}
-    }
-  ]
-}
-```
-
-See [Deployment Guide](../docs/DEPLOYMENTS.md) for complete setup.
 
 ---
 
 ## Related Documentation
 
-- [Architecture](../docs/ARCHITECTURE.md) - System architecture
-- [Backend API](../backend/README.md) - Runner client integration
-- [Judge System](../judge/README.md) - Judge uses runner for validation
-- [Deployment Guide](../docs/DEPLOYMENTS.md) - AWS deployment
-
----
-
-<div align="center">
-
-**[← Back to Main README](../README.md)** | **[View Architecture →](../docs/ARCHITECTURE.md)**
-
-</div
-
-Rootless Docker-in-Docker image and supervisor tooling for learner sessions.
+- [Architecture](../docs/ARCHITECTURE.md) - System design
+- [Deployment](../docs/DEPLOYMENT.md) - Deploy to production
+- [Main README](../README.md) - Project overview

@@ -1,4 +1,4 @@
-# 🏗️ ContainrLab System Architecture
+# System Architecture
 
 Complete technical architecture of the ContainrLab platform.
 
@@ -6,9 +6,9 @@ Complete technical architecture of the ContainrLab platform.
 
 ## Overview
 
-ContainrLab is a cloud-native microservices platform that provides **isolated Docker environments** in the browser. Users write Dockerfiles, build images, and run containers in **Docker-in-Docker sessions** with real-time feedback.
+ContainrLab is a cloud-native microservices platform that provides **isolated Docker environments** in the browser. Users write Dockerfiles, build images, and run containers in **Docker-in-Docker sessions** with real-time feedback and automated validation.
 
-**Core Principle:** Every user gets an isolated container with full Docker access for 30 minutes.
+**Core Principle:** Every user gets an isolated container with full Docker access for 45 minutes.
 
 ---
 
@@ -18,14 +18,14 @@ ContainrLab is a cloud-native microservices platform that provides **isolated Do
 graph TB
     User[👤 User Browser]
     
-    Web[🌐 Next.js Frontend<br/>- React UI<br/>- Auth<br/>- Terminal<br/>- File Editor]
+    Web[🌐 Next.js Frontend<br/>Port 3000<br/>- React UI<br/>- Auth<br/>- Terminal<br/>- File Editor]
     
-    API[⚡ FastAPI Backend<br/>- REST API<br/>- WebSocket Proxy<br/>- Session Management<br/>- Judge Orchestration]
+    API[⚡ FastAPI Backend<br/>Port 8000<br/>- REST API<br/>- WebSocket Proxy<br/>- Session Management<br/>- Judge Orchestration]
     
-    RunnerD[🔧 RunnerD Service<br/>- Session Containers<br/>- Docker-in-Docker<br/>- File Operations]
+    RunnerD[🔧 RunnerD Service<br/>Port 8080<br/>- Session Containers<br/>- Docker-in-Docker<br/>- File Operations]
     
-    Session1[🐋 Session Container<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
-    Session2[🐋 Session Container<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
+    Session1[🐋 Session Container<br/>sess-abc123<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
+    Session2[🐋 Session Container<br/>sess-xyz789<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
     
     GitHub[🔐 GitHub OAuth]
     Gemini[🤖 Google Gemini AI]
@@ -68,15 +68,13 @@ graph TB
     class DB storage
 ```
 
-**[→ View full diagram with details](diagrams/system-architecture.md)**
-
 ---
 
-## Components
+## Component Architecture
 
-### Frontend: Next.js Web Application
+### Frontend (Next.js 14)
 
-**Technology:** Next.js 14, React 18, TailwindCSS, xterm.js, NextAuth.js
+**Technology:** Next.js, React 18, TailwindCSS, xterm.js, NextAuth.js
 
 **Responsibilities:**
 - User interface with terminal emulator and code editor
@@ -91,28 +89,13 @@ graph TB
 - **Auth:** NextAuth.js handles OAuth with GitHub
 - **State:** React hooks manage session and file state
 
-**Architecture:**
-```
-app/
-├── (auth)/          # Authentication pages
-├── labs/            # Lab listing and detail pages
-├── session/         # Active session interface
-└── api/             # NextAuth API routes
-
-components/
-├── Terminal/        # xterm.js terminal component
-├── FileTree/        # File browser
-├── Editor/          # Code editor
-└── JudgeResults/    # Validation feedback
-```
-
-**[→ Frontend documentation](../frontend/README.md)**
+**[View frontend documentation →](../frontend/README.md)**
 
 ---
 
-### Backend: FastAPI Service
+### Backend (FastAPI)
 
-**Technology:** FastAPI, Python 3.11, SQLite, HTTPX, WebSockets
+**Technology:** FastAPI, Python 3.12, SQLite, HTTPX, WebSockets
 
 **Responsibilities:**
 - REST API for all operations
@@ -140,16 +123,11 @@ components/
 - **AgentService:** Google Gemini AI integration with rate limiting
 - **JudgeService:** Dispatches to lab-specific judges
 
-**Data Models:**
-- **User:** GitHub ID, login, avatar
-- **Session:** ID, user_id, lab_slug, container, TTL, timestamps
-- **Attempt:** Session, lab, passed, failures, metrics
-
-**[→ Backend documentation](../backend/README.md)**
+**[View backend documentation →](../backend/README.md)**
 
 ---
 
-### Runner: Docker-in-Docker Service
+### RunnerD (Container Orchestrator)
 
 **Technology:** Docker-in-Docker, Python, FastAPI
 
@@ -160,19 +138,6 @@ components/
 - File system operations
 - Session cleanup
 
-**Architecture:**
-```
-RunnerD (Port 8080)
-    ↓
-Session Containers (Docker-in-Docker)
-    ├── sess-abc123 (1.5GB RAM, 1 vCPU)
-    │   ├── Docker daemon
-    │   ├── /workspace (user files)
-    │   └── bash terminal
-    └── sess-xyz789
-        └── ...
-```
-
 **API Endpoints:**
 - `POST /sessions` - Create new DinD container
 - `POST /sessions/{id}/build` - Build Docker image
@@ -182,20 +147,11 @@ Session Containers (Docker-in-Docker)
 - `GET /sessions/{id}/terminal/ws` - Terminal WebSocket
 - `DELETE /sessions/{id}` - Cleanup session
 
-**Session Lifecycle:**
-1. **Create:** Spawn DinD container with unique ID
-2. **Initialize:** Docker daemon starts, workspace created
-3. **Active:** User builds images, runs containers, edits files
-4. **Expire:** 30 minutes TTL or manual end
-5. **Cleanup:** Stop all containers, remove DinD container
-
-**[→ Session lifecycle diagram](diagrams/session-lifecycle.md)**
-
-**[→ Runner documentation](../runner/README.md)**
+**[View runner documentation →](../runner/README.md)**
 
 ---
 
-### Judge: Automated Validation
+### Judge (Automated Validation)
 
 **Technology:** Python modules, Async/await
 
@@ -206,65 +162,65 @@ Session Containers (Docker-in-Docker)
 - Check functionality
 - Provide detailed feedback
 
-**Judge Flow:**
-```
-User submits lab
-    ↓
-Backend: judge_service.evaluate(lab_slug, session_id)
-    ↓
-Lab-specific judge (lab1.py, lab2.py, lab3.py)
-    ↓
-┌─────────────────────────────────────┐
-│ 1. Read files (Dockerfile, etc.)   │
-│ 2. Validate structure               │
-│ 3. Build image via runner           │
-│ 4. Run container                    │
-│ 5. Test functionality               │
-│ 6. Check metrics (size, etc.)       │
-└─────────────────────────────────────┘
-    ↓
-Return JudgeResult(passed, failures, metrics)
-    ↓
-Frontend displays results to user
-```
-
 **Lab-Specific Judges:**
 - **Lab 1:** Checks `.dockerignore`, build success, health endpoint
 - **Lab 2:** Validates layer order, pip flags, caching
 - **Lab 3:** Multi-stage structure, image size < 250MB, functionality
 
-**JudgeResult Model:**
-```python
-{
-  "passed": bool,
-  "failures": [
-    {"code": str, "message": str, "hint": str}
-  ],
-  "metrics": {
-    "build": {"elapsed_seconds": float},
-    "image_size_mb": float
-  },
-  "notes": {
-    "build_logs": [str],
-    "runtime_logs": [str]
-  }
-}
-```
-
-**[→ Judge documentation](../judge/README.md)**
+**[View judge documentation →](../judge/README.md)**
 
 ---
 
-## Data Flow
+## Data Flow Diagrams
 
-### User Session Flow
+### Session Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Requested: User clicks<br/>"Start Session"
+    
+    Requested --> Creating: Backend requests<br/>session from Runner
+    
+    Creating --> Initializing: RunnerD spawns<br/>DinD container
+    
+    Initializing --> Ready: Docker daemon started<br/>Workspace created<br/>TTL timer started
+    
+    Ready --> Active: User interacts<br/>via Terminal/Files
+    
+    Active --> Active: User actions:<br/>- Edit files<br/>- Run Docker commands<br/>- Build images<br/>- Submit for judging
+    
+    Active --> Expiring: 45 minutes elapsed<br/>OR user ends session
+    
+    Active --> Timeout: Session TTL exceeded
+    
+    Timeout --> Cleanup
+    Expiring --> Cleanup
+    
+    Cleanup --> Terminated: Container stopped<br/>Resources freed<br/>DB updated
+    
+    Terminated --> [*]
+```
+
+**Session States:**
+1. **Requested** - User initiates session
+2. **Creating** - Backend calls RunnerD API
+3. **Initializing** - DinD container spawning
+4. **Ready** - Docker daemon running, workspace created
+5. **Active** - User building, testing, coding
+6. **Expiring/Timeout** - Session ending (manual or TTL)
+7. **Cleanup** - Container removal, resource cleanup
+8. **Terminated** - Session fully cleaned up
+
+---
+
+### User Interaction Flow
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant W as Web
     participant A as API
-    participant R as Runner
+    participant R as RunnerD
     participant G as GitHub
     participant AI as Gemini
 
@@ -274,8 +230,8 @@ sequenceDiagram
     W->>A: GET /auth/me
     A-->>W: User info
     
-    U->>W: Start Lab 1
-    W->>A: POST /labs/lab1/start
+    U->>W: Start Lab
+    W->>A: POST /labs/{lab}/start
     A->>R: POST /sessions
     R-->>A: Session created
     A-->>W: Session details
@@ -295,7 +251,7 @@ sequenceDiagram
     W-->>U: Display hint
     
     U->>W: Submit for judging
-    W->>A: POST /judge/lab1
+    W->>A: POST /judge/{lab}
     A->>R: Build & test
     R-->>A: Results
     A-->>W: Pass/Fail + feedback
@@ -304,19 +260,156 @@ sequenceDiagram
 
 ---
 
-## Security Model
+### Cloud Infrastructure
 
-### Authentication
+```mermaid
+graph TB
+    Internet[🌍 Internet]
+    
+    Route53[🌐 DNS<br/>containrlab.click]
+    
+    ALB[🔀 Application Load Balancer<br/>HTTPS:443]
+    
+    TG_API[Target Group<br/>API Port 8000]
+    TG_WEB[Target Group<br/>Web Port 3000]
+    TG_RUNNER[Target Group<br/>Runner Port 8080]
+    
+    subgraph Fargate["ECS Fargate Cluster"]
+        API_Task[⚡ API Task<br/>AMD64, 512MB<br/>0.25 vCPU]
+        WEB_Task[🌐 Web Task<br/>AMD64, 512MB<br/>0.25 vCPU]
+    end
+    
+    subgraph EC2_Cluster["EC2 Runner Cluster"]
+        EC2[💻 EC2 Instance<br/>2 vCPU, 4GB RAM]
+        Runner_Task[🔧 Runner Task<br/>AMD64, 2GB<br/>Privileged Mode]
+    end
+    
+    subgraph ECR["Container Registry"]
+        ECR_Images[4 Docker Images<br/>AMD64 Architecture]
+    end
+    
+    subgraph SSM["Secrets Management"]
+        SSM_Params[Encrypted Parameters<br/>OAuth, API Keys, Config]
+    end
+    
+    Internet --> Route53
+    Route53 --> ALB
+    
+    ALB --> TG_API
+    ALB --> TG_WEB
+    ALB -.-> TG_RUNNER
+    
+    TG_API --> API_Task
+    TG_WEB --> WEB_Task
+    TG_RUNNER --> Runner_Task
+    
+    EC2 --> Runner_Task
+    
+    API_Task <--> Runner_Task
+    WEB_Task --> API_Task
+    
+    API_Task -.->|Pull Image| ECR_Images
+    WEB_Task -.->|Pull Image| ECR_Images
+    Runner_Task -.->|Pull Image| ECR_Images
+    
+    API_Task -.->|Read Secrets| SSM_Params
+    WEB_Task -.->|Read Secrets| SSM_Params
+    
+    classDef network fill:#f39c12,stroke:#c87f0a,color:#fff
+    classDef compute fill:#4a90e2,stroke:#2d5a8c,color:#fff
+    classDef storage fill:#50c878,stroke:#2d7a4a,color:#fff
+    
+    class Route53,ALB,TG_API,TG_WEB,TG_RUNNER network
+    class Fargate,EC2_Cluster,API_Task,WEB_Task,EC2,Runner_Task compute
+    class ECR,SSM storage
+```
+
+**Cloud Resources:**
+- **ECS Fargate:** Serverless containers for API/Web (AMD64)
+- **ECS on EC2:** Dedicated compute for Runner with Docker-in-Docker
+- **Application Load Balancer:** HTTPS termination and routing
+- **Container Registry:** Docker image storage (4 images)
+- **Secrets Management:** Encrypted parameter storage
+
+---
+
+### Deployment Pipeline
+
+```mermaid
+graph LR
+    Dev[👨‍💻 Developer]
+    
+    PR[📝 Pull Request]
+    Main[🌳 main Branch]
+    
+    subgraph Test["🧪 Test Workflow"]
+        T1[Run Backend Tests]
+        T2[Run Frontend Tests]
+        T3[Code Quality Check]
+    end
+    
+    subgraph Deploy["🚀 Deploy Workflow"]
+        D1[Build Images<br/>AMD64]
+        D2[Push to Registry]
+        D3[Update ECS Services]
+        D4[Health Check]
+    end
+    
+    ECR[📦 Container Registry]
+    ECS[⚡ ECS Production]
+    Prod[✅ app.containrlab.click]
+    
+    Dev --> PR
+    PR --> Test
+    
+    T1 --> T2 --> T3
+    
+    PR -->|Merge After Tests| Main
+    Main --> Deploy
+    
+    D1 --> D2 --> D3 --> D4
+    
+    D2 --> ECR
+    ECR --> D3
+    D4 --> ECS
+    ECS --> Prod
+    
+    classDef dev fill:#3498db,color:#fff
+    classDef test fill:#f39c12,color:#fff
+    classDef deploy fill:#e74c3c,color:#fff
+    classDef prod fill:#27ae60,color:#fff
+    
+    class Dev,PR,Main dev
+    class Test,T1,T2,T3 test
+    class Deploy,D1,D2,D3,D4 deploy
+    class ECR,ECS,Prod prod
+```
+
+**Deployment Stages:**
+1. **Development** - Push code, create PR
+2. **Testing** - Automated backend/frontend tests
+3. **Merge** - Tests must pass before merge
+4. **Build** - Docker images (AMD64 architecture)
+5. **Push** - Upload to container registry
+6. **Deploy** - Rolling update to ECS
+7. **Verification** - Health checks confirm deployment
+
+**Deployment Time:** ~10-15 minutes from push to production
+
+---
+
+## Security Architecture
+
+### Authentication & Authorization
 
 **GitHub OAuth Flow:**
 1. User redirects to GitHub for authorization
-2. GitHub redirects back with authorization code
+2. GitHub returns authorization code
 3. Backend exchanges code for access token
 4. Backend fetches user profile from GitHub API
-5. Backend creates/updates user in database
-6. NextAuth.js creates JWT session token
-7. JWT stored in HTTP-only, secure cookie
-8. All API requests validated via JWT
+5. NextAuth.js creates JWT session token
+6. JWT stored in HTTP-only, secure cookie
+7. All API requests validated via JWT
 
 **Token Storage:**
 - Frontend: HTTP-only cookies (not accessible to JavaScript)
@@ -331,22 +424,22 @@ sequenceDiagram
 - Each session runs in isolated Docker-in-Docker container
 - No network access between sessions
 - Resource limits enforced: 1.5GB RAM, 1 vCPU
-- 30-minute TTL prevents resource exhaustion
+- 45-minute TTL prevents resource exhaustion
 - All containers removed on session end
 
-**User Capabilities (What users CAN do):**
+**User Capabilities:**
 - ✅ Build Docker images
 - ✅ Run containers on port 8080
 - ✅ Execute bash commands
 - ✅ Create/edit files in `/workspace`
 - ✅ Install packages in containers
 
-**User Restrictions (What users CANNOT do):**
+**User Restrictions:**
 - ❌ Access other users' sessions
 - ❌ Bypass resource limits
 - ❌ Access runner host system
-- ❌ Make external network requests (isolated)
-- ❌ Run sessions longer than 30 minutes
+- ❌ Make external network requests
+- ❌ Run sessions longer than TTL
 
 ---
 
@@ -357,43 +450,19 @@ sequenceDiagram
 - Mounted as Docker secrets
 - Gitignored
 
-**Production (AWS):**
-- Stored in AWS SSM Parameter Store
-- Encrypted at rest
+**Production (Cloud):**
+- Stored in encrypted parameter store
 - Injected as environment variables
 - IAM roles control access
-
-**[→ Complete secrets guide](SECRETS_MANAGEMENT.md)**
-
----
-
-## Database
-
-### Technology
-
-**SQLite** - File-based relational database
-
-**Why SQLite:**
-- Simple deployment (no separate database server)
-- Sufficient for current scale (1-2 concurrent users)
-- Fast for read-heavy workloads
-- Zero configuration
-
-**Location:**
-- Local: `sqlite/app.db`
-- Production: `/sqlite/app.db` (ephemeral, in container)
-
-**Ephemeral Nature:**
-- Database resets on deployment
-- User sessions lost on restart
-- Judge attempts not persisted long-term
-- Fine for current use case (learning platform)
+- Never committed to Git
 
 ---
 
-### Schema
+## Database Schema
 
-**Users:**
+**Technology:** SQLite (file-based relational database)
+
+**Users Table:**
 ```sql
 CREATE TABLE users (
     github_id INTEGER PRIMARY KEY,
@@ -403,14 +472,14 @@ CREATE TABLE users (
 );
 ```
 
-**Sessions:**
+**Sessions Table:**
 ```sql
 CREATE TABLE sessions (
     session_id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     lab_slug TEXT NOT NULL,
     runner_container TEXT,
-    ttl_seconds INTEGER DEFAULT 1800,
+    ttl_seconds INTEGER DEFAULT 2700,
     created_at TIMESTAMP,
     expires_at TIMESTAMP,
     ended_at TIMESTAMP,
@@ -418,83 +487,74 @@ CREATE TABLE sessions (
 );
 ```
 
-**Judge Attempts:**
+**Judge Attempts Table:**
 ```sql
 CREATE TABLE judge_attempts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id TEXT NOT NULL,
     lab_slug TEXT NOT NULL,
     passed BOOLEAN NOT NULL,
-    failures TEXT,  -- JSON
-    metrics TEXT,   -- JSON
+    failures TEXT,
+    metrics TEXT,
     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id)
 );
 ```
 
----
-
-### Persistence Options (Future)
-
-For production scale or persistence requirements:
-
-**Option 1: AWS RDS (PostgreSQL)**
-- Persistent across deployments
-- Multi-user writes
-- Cost: +$15-20/month
-
-**Option 2: AWS EFS**
-- Shared file system for SQLite
-- Persistent but still single-writer
-- Cost: ~$5/month
-
-**Option 3: Keep SQLite**
-- Current approach works for learning platform
-- No historical data needed
-- Users can re-do labs anytime
+**Ephemeral Nature:**
+- Database resets on deployment
+- User sessions lost on restart
+- Fine for learning platform (users can re-do labs)
 
 ---
 
-## AI Integration
+## Design Decisions
 
-### Google Gemini AI
+### Why Docker-in-Docker?
 
-**Purpose:** Provide contextual hints and explanations to learners
+**Alternative:** Shared Docker daemon
 
-**Integration:**
-```
-User clicks "Get Hint"
-    ↓
-Frontend: POST /agent/hint
-    ↓
-Backend: AgentService.generate_hint()
-    ↓
-Google Gemini API (models/gemini-1.5-flash)
-    ↓
-Response: Contextual hint about current step
-    ↓
-Frontend displays hint to user
-```
+**Advantages:**
+- ✅ True isolation between users
+- ✅ Each user has full Docker capabilities
+- ✅ No risk of user A seeing user B's containers
+- ✅ Easy cleanup (remove whole container)
 
-**Features:**
-- Contextual hints based on lab and user progress
-- Code explanations for Docker concepts
-- Error message interpretation
-- Rate limited: 5 requests per minute per session
+**Trade-offs:**
+- ❌ More resource-intensive
+- ❌ Requires privileged mode
 
-**Fallback:**
-- If API key missing: Deterministic stub responses
-- If API fails: Graceful degradation
-- Never blocks lab completion
+**Decision:** DinD for security and isolation
 
-**Configuration:**
-```bash
-GEMINI_API_KEY=xxx
-GEMINI_MODEL=models/gemini-1.5-flash
-GEMINI_TEMPERATURE=0.7
-GEMINI_MAX_OUTPUT_TOKENS=512
-GEMINI_TIMEOUT_SECONDS=20
-```
+---
+
+### Why 45-Minute Sessions?
+
+**Alternatives:**
+- Longer (60+ min): Resource exhaustion, higher costs
+- Shorter (15 min): Not enough time to complete labs
+- Unlimited: Abuse risk, costs spiral
+
+**Why 45 minutes:**
+- ✅ Sufficient time for any lab
+- ✅ Forces users to stay engaged
+- ✅ Automatic cleanup prevents abuse
+- ✅ Resource costs manageable
+
+---
+
+### Why Ephemeral Database?
+
+**Alternative:** Persistent database (PostgreSQL RDS)
+
+**Why SQLite works:**
+- ✅ This is a learning platform, not production app
+- ✅ Users don't need progress history
+- ✅ Labs can be re-done anytime
+- ✅ Simpler architecture
+- ✅ Lower costs
+
+**When to change:** If adding progress tracking, leaderboards, or certificates
 
 ---
 
@@ -505,115 +565,61 @@ GEMINI_TIMEOUT_SECONDS=20
 **Designed for:** 1-2 concurrent users
 
 **Resources:**
-- EC2 Instance: t3.medium (2 vCPU, 4GB RAM)
+- Compute: 2 vCPU, 4GB RAM for runner
 - Max concurrent sessions: 2
 - Session resources: 1.5GB RAM, 1 vCPU each
-- Session TTL: 30 minutes
+- Session TTL: 45 minutes
 
 **Bottlenecks:**
-1. **EC2 Memory:** 4GB limits concurrent sessions
-2. **SQLite:** Single-writer limitation
-3. **No horizontal scaling:** Single runner instance
+1. Runner instance memory (4GB)
+2. SQLite single-writer limitation
+3. No horizontal scaling
 
 ---
 
 ### Scaling Strategies
 
-**Horizontal Scaling (10-50 users):**
-1. Add more EC2 instances for runner
-2. Load balance across runner instances
-3. Replace SQLite with PostgreSQL (RDS)
-4. Add Redis for caching and session state
-5. Auto-scale ECS tasks based on load
-
-**Cost:** ~$200-300/month
-
 **Vertical Scaling (2-5 users):**
-1. Upgrade EC2 to m5.large (8GB RAM)
-2. Increase session limits to 4-5 concurrent
-3. Keep SQLite (still sufficient)
+- Upgrade runner instance to 8GB RAM
+- Increase concurrent session limit to 4-5
+- Keep SQLite (still sufficient)
 
-**Cost:** ~$130/month
-
-**[→ AWS infrastructure details](AWS_INFRASTRUCTURE.md)**
+**Horizontal Scaling (10-50 users):**
+- Add multiple runner instances
+- Load balance across runners
+- Replace SQLite with PostgreSQL
+- Add Redis for caching
+- Auto-scale based on load
 
 ---
 
 ## Technology Choices
 
-### Why These Technologies?
-
-| Technology | Reason |
-|------------|--------|
-| **Next.js** | Server-side rendering, great DX, built-in API routes |
+| Technology | Rationale |
+|------------|-----------|
+| **Next.js** | Server-side rendering, great developer experience |
 | **FastAPI** | Modern Python framework, async support, automatic docs |
 | **Docker-in-Docker** | True isolation, full Docker capabilities per user |
 | **SQLite** | Simple, fast, sufficient for current scale |
-| **ECS Fargate** | Serverless containers, easy scaling, no server management |
+| **ECS Fargate** | Serverless containers, easy scaling |
 | **GitHub OAuth** | Users already have accounts, simple integration |
-| **Gemini AI** | Free tier, good for learning assistance |
-
----
-
-## Design Decisions
-
-### Why Docker-in-Docker?
-
-**Alternative considered:** Shared Docker daemon
-
-**Why DinD is better:**
-- ✅ True isolation between users
-- ✅ Each user has full Docker capabilities
-- ✅ No risk of user A seeing user B's containers
-- ✅ Easy cleanup (remove whole container)
-- ❌ More resource-intensive
-- ❌ Requires privileged mode
-
-**Decision:** DinD for security and isolation
-
----
-
-### Why 30-Minute Sessions?
-
-**Alternatives:**
-- Longer (60+ min): Resource exhaustion, higher costs
-- Shorter (15 min): Not enough time to complete labs
-- Unlimited: Abuse risk, costs spiral
-
-**Why 30 minutes:**
-- ✅ Enough time for any lab
-- ✅ Forces users to stay engaged
-- ✅ Automatic cleanup prevents abuse
-- ✅ Resource costs manageable
-
----
-
-### Why Ephemeral Database?
-
-**Alternative:** Persistent PostgreSQL RDS
-
-**Why SQLite (ephemeral) works:**
-- ✅ This is a learning platform, not a production app
-- ✅ Users don't need progress history
-- ✅ Labs can be re-done anytime
-- ✅ Saves ~$20/month
-- ✅ Simpler architecture
-
-**When to change:** If we add progress tracking, leaderboards, or certificates
+| **Gemini AI** | Generous free tier, good for learning assistance |
 
 ---
 
 ## Related Documentation
 
-- **[Deployment Guide](DEPLOYMENTS.md)** - How to deploy this architecture to AWS
-- **[AWS Infrastructure](AWS_INFRASTRUCTURE.md)** - Detailed AWS resource breakdown
-- **[CI/CD Setup](CI-CD-SETUP.md)** - Automated deployment pipeline
-- **[Diagrams](diagrams/)** - All architecture diagrams
+- **[Deployment Guide](DEPLOYMENT.md)** - Deploy to AWS production
+- **[Main README](../README.md)** - Project overview
+- **[Frontend](../frontend/README.md)** - Web UI documentation
+- **[Backend](../backend/README.md)** - API documentation
+- **[Runner](../runner/README.md)** - Container orchestrator
+- **[Judge](../judge/README.md)** - Validation system
 
 ---
 
 <div align="center">
 
-**[← Back to Documentation Hub](README.md)** | **[Deploy to AWS →](DEPLOYMENTS.md)**
+**[← Back to Documentation](README.md)** | **[Deploy to AWS →](DEPLOYMENT.md)**
 
 </div>
