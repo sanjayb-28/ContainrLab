@@ -68,22 +68,59 @@ ContainrLab is a production-grade containerization training platform leveraging 
 
 ```mermaid
 graph TB
-    User[👤 You] -->|1. Start Lab| Web[🌐 Web Interface]
-    Web -->|2. Create Session| API[⚡ Backend API]
-    API -->|3. Spawn Container| Runner[🔧 Runner Service]
-    Runner -->|4. Isolated Environment| Session[🐋 Your Container<br/>with Docker & Terminal]
-    Session -->|5. Build & Test| Session
-    Session -->|6. Submit| Judge[⚖️ Automated Judge]
-    Judge -->|7. Results| You
+    User[👤 User Browser]
     
-    style Web fill:#4a90e2,color:#fff
-    style API fill:#50c878,color:#fff
-    style Runner fill:#f39c12,color:#fff
-    style Session fill:#e74c3c,color:#fff
-    style Judge fill:#9b59b6,color:#fff
+    Web[🌐 Next.js Frontend<br/>Port 3000<br/>- React UI<br/>- Auth<br/>- Terminal<br/>- File Editor]
+    
+    API[⚡ FastAPI Backend<br/>Port 8000<br/>- REST API<br/>- WebSocket Proxy<br/>- Session Management<br/>- Judge Orchestration]
+    
+    RunnerD[🔧 RunnerD Service<br/>Port 8080<br/>- Session Containers<br/>- Docker-in-Docker<br/>- File Operations]
+    
+    Session1[🐋 Session Container<br/>sess-abc123<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
+    Session2[🐋 Session Container<br/>sess-xyz789<br/>- Docker Daemon<br/>- Workspace<br/>- Bash Terminal]
+    
+    GitHub[🔐 GitHub OAuth]
+    Gemini[🤖 Google Gemini AI]
+    DB[(💾 SQLite Database<br/>- Users<br/>- Sessions<br/>- Attempts)]
+    
+    User -->|HTTPS| Web
+    User -.->|OAuth Login| GitHub
+    GitHub -.->|User Profile| User
+    
+    Web -->|API Requests| API
+    Web <-->|WebSocket Terminal| API
+    
+    API -->|Authenticate| GitHub
+    API -->|AI Hints| Gemini
+    API -->|Read/Write| DB
+    
+    API -->|Create Session| RunnerD
+    API -->|Execute Commands| RunnerD
+    API -->|Build Docker| RunnerD
+    API -->|File Operations| RunnerD
+    API <-->|Terminal WebSocket| RunnerD
+    
+    RunnerD -->|Spawn Container| Session1
+    RunnerD -->|Spawn Container| Session2
+    RunnerD -->|Manage Lifecycle| Session1
+    RunnerD -->|Manage Lifecycle| Session2
+    
+    classDef frontend fill:#4a90e2,stroke:#2d5a8c,color:#fff
+    classDef backend fill:#50c878,stroke:#2d7a4a,color:#fff
+    classDef runner fill:#f39c12,stroke:#c87f0a,color:#fff
+    classDef session fill:#e74c3c,stroke:#c0392b,color:#fff
+    classDef external fill:#9b59b6,stroke:#6c3483,color:#fff
+    classDef storage fill:#34495e,stroke:#2c3e50,color:#fff
+    
+    class Web frontend
+    class API backend
+    class RunnerD runner
+    class Session1,Session2 session
+    class GitHub,Gemini external
+    class DB storage
 ```
 
-**[View detailed system architecture →](docs/ARCHITECTURE.md)**
+**[View detailed architecture documentation →](docs/ARCHITECTURE.md)**
 
 ---
 
