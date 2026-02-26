@@ -187,7 +187,7 @@ stateDiagram-v2
     
     Ready --> Active: User interacts<br/>via Terminal/Files
     
-    Active --> Active: User actions: Edit files, Run Docker commands, Build images, Submit for judging
+    Active --> Active: Edit files / Run Docker commands / Build images / Submit for judging
     
     Active --> Expiring: 45 minutes elapsed<br/>OR user ends session
     
