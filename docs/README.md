@@ -13,7 +13,7 @@ Complete documentation for ContainrLab. Whether you're learning Docker, deployin
 ### New Users
 Start here if you're new to ContainrLab:
 
-1. **[Try the Live Demo](https://app.containrlab.click)** - No setup required
+1. **[Try the Live Demo](https://containrlab.sanjaybaskaran.dev)** - No setup required
 2. **[Browse the Labs](../labs/)** - See what you'll learn
 3. **[View Quick Start](../README.md#-quick-start)** - Get started in minutes
 
@@ -98,9 +98,9 @@ docs/
 
 ### Production URLs
 
-- **Production:** [https://app.containrlab.click](https://app.containrlab.click)
-- **API:** [https://api.containrlab.click](https://api.containrlab.click)
-- **Health Check:** [https://api.containrlab.click/healthz](https://api.containrlab.click/healthz)
+- **Production:** [https://containrlab.sanjaybaskaran.dev](https://containrlab.sanjaybaskaran.dev)
+- **API:** [https://api-containrlab.sanjaybaskaran.dev](https://api-containrlab.sanjaybaskaran.dev)
+- **Health Check:** [https://api-containrlab.sanjaybaskaran.dev/healthz](https://api-containrlab.sanjaybaskaran.dev/healthz)
 
 ### Key Specifications
 
@@ -124,11 +124,11 @@ SESSION_CLEANUP_INTERVAL_SECONDS=60
 
 **Frontend (Next.js):**
 ```bash
-NEXT_PUBLIC_API_BASE=https://api.containrlab.click
+NEXT_PUBLIC_API_BASE=https://api-containrlab.sanjaybaskaran.dev
 GITHUB_CLIENT_ID=xxx
 GITHUB_CLIENT_SECRET=xxx
 NEXTAUTH_SECRET=xxx
-NEXTAUTH_URL=https://app.containrlab.click
+NEXTAUTH_URL=https://containrlab.sanjaybaskaran.dev
 ```
 
 **[View complete deployment guide →](DEPLOYMENT.md)**
@@ -191,7 +191,7 @@ Session Containers
 ### I want to...
 
 - **Learn Docker** → [Browse Labs](../labs/)
-- **Try it out** → [Live Demo](https://app.containrlab.click)
+- **Try it out** → [Live Demo](https://containrlab.sanjaybaskaran.dev)
 - **Run locally** → [Local Setup](LOCAL_SETUP.md)
 - **Deploy to AWS** → [Deployment Guide](DEPLOYMENT.md)
 - **Understand how it works** → [Architecture](ARCHITECTURE.md)
@@ -215,7 +215,7 @@ Found something unclear or outdated?
 
 - **Bug Reports:** [GitHub Issues](https://github.com/sanjayb-28/ContainrLab/issues)
 - **Feature Requests:** [GitHub Discussions](https://github.com/sanjayb-28/ContainrLab/discussions)
-- **Email:** support@containrlab.click *(configure if needed)*
+- **Email:** support@sanjaybaskaran.dev *(configure if needed)*
 
 ---
 

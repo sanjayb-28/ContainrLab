@@ -4,11 +4,11 @@
 
 **Cloud-native containerization training environment with real-time validation and LLM-assisted development**
 
-[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge&logo=docker)](https://app.containrlab.click)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen?style=for-the-badge&logo=docker)](https://containrlab.sanjaybaskaran.dev)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 [![CI/CD](https://img.shields.io/badge/AWS-paused-gray?style=for-the-badge&logo=amazon-aws)](https://github.com/sanjayb-28/ContainrLab/actions)
 
-[🚀 Try Live Demo](https://app.containrlab.click) • [📖 Documentation](docs/) • [🎓 Browse Labs](labs/) • [🏗️ Architecture](docs/ARCHITECTURE.md)
+[🚀 Try Live Demo](https://containrlab.sanjaybaskaran.dev) • [📖 Documentation](docs/) • [🎓 Browse Labs](labs/) • [🏗️ Architecture](docs/ARCHITECTURE.md)
 
 ---
 
@@ -38,7 +38,7 @@ ContainrLab is a production-grade containerization training platform leveraging 
 - **Instant Validation** - Automated judges test your solutions in real-time → [How it works](docs/ARCHITECTURE.md#judge-automated-validation)
 - **AI Assistant** - Contextual hints powered by Google Gemini → [Learn more](docs/ARCHITECTURE.md)
 - **Browser Terminal** - Full bash terminal with Docker-in-Docker capabilities → [Architecture](docs/ARCHITECTURE.md#runnerd-container-orchestrator)
-- **Integrated Editor** - Edit Dockerfiles and application code directly in the browser → [See UI](https://app.containrlab.click)
+- **Integrated Editor** - Edit Dockerfiles and application code directly in the browser → [See UI](https://containrlab.sanjaybaskaran.dev)
 - **Secure Isolation** - Individual containers with resource limits for each session → [Security model](docs/ARCHITECTURE.md#security-architecture)
 
 ---
@@ -157,13 +157,13 @@ graph TB
 No installation required. Access the platform immediately with GitHub authentication.
 
 ```
-1. Visit https://app.containrlab.click
+1. Visit https://containrlab.sanjaybaskaran.dev
 2. Sign in with GitHub OAuth
 3. Select a lab (Lab 1 recommended for beginners)
 4. Click "Start Session" to launch your isolated environment
 ```
 
-**[Start Learning →](https://app.containrlab.click)**
+**[Start Learning →](https://containrlab.sanjaybaskaran.dev)**
 
 ---
 
@@ -342,7 +342,7 @@ Contributions are welcome! Key areas for contribution:
 
 ## Project Status
 
-- ✅ **Production:** Fully deployed at [app.containrlab.click](https://app.containrlab.click)
+- ✅ **Production:** Fully deployed at [containrlab.sanjaybaskaran.dev](https://containrlab.sanjaybaskaran.dev)
 - ✅ **CI/CD:** Automated testing and deployment via GitHub Actions
 - ✅ **Labs:** 3 Docker labs (beginner to advanced)
 - 🚧 **Roadmap:** More labs, Kubernetes content, team features
@@ -369,6 +369,6 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) for 
 
 ⭐ Star this repository if you find it helpful
 
-[Start Learning →](https://app.containrlab.click) • [Documentation](docs/) • [Browse Labs](labs/)
+[Start Learning →](https://containrlab.sanjaybaskaran.dev) • [Documentation](docs/) • [Browse Labs](labs/)
 
 </div>
