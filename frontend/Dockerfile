@@ -8,7 +8,7 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_API_BASE=https://api.containrlab.click
+ARG NEXT_PUBLIC_API_BASE=https://api-containrlab.sanjaybaskaran.dev
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

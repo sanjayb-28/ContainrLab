@@ -1,39 +1,47 @@
-name: Deploy to Production
+name: Deploy
 
 on:
-  # push:
-  #   branches: [ main ]  # Disabled - app is frozen
-  workflow_dispatch:  # Manual trigger only
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run mode"
+        type: choice
+        required: true
+        default: build-and-deploy
+        options:
+          - build-only
+          - build-and-deploy
 
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 143353052888.dkr.ecr.us-east-1.amazonaws.com
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy
+  build:
+    name: Build & Push Images
     runs-on: ubuntu-latest
-    
+    outputs:
+      sha: ${{ github.sha }}
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-      
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-      
-      - name: Login to Amazon ECR
-        id: login-ecr
+
+      - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      # Build and push API image (AMD64 for Fargate)
-      - name: Build and push API image
+
+      - name: Build & push API image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -45,9 +53,8 @@ jobs:
             ${{ env.ECR_REGISTRY }}/containrlab-api:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      # Build and push Web image (AMD64 for Fargate)
-      - name: Build and push Web image
+
+      - name: Build & push Web image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -55,15 +62,14 @@ jobs:
           push: true
           platforms: linux/amd64
           build-args: |
-            NEXT_PUBLIC_API_BASE=https://api.containrlab.click
+            NEXT_PUBLIC_API_BASE=https://${{ vars.API_HOST }}
           tags: |
             ${{ env.ECR_REGISTRY }}/containrlab-web:latest
             ${{ env.ECR_REGISTRY }}/containrlab-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      # Build and push Runner image (AMD64 for EC2)
-      - name: Build and push Runner image
+
+      - name: Build & push Runner image
         uses: docker/build-push-action@v5
         with:
           context: ./runner
@@ -75,9 +81,8 @@ jobs:
             ${{ env.ECR_REGISTRY }}/containrlab-runner:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      # Build and push RunnerD image (AMD64 for EC2)
-      - name: Build and push RunnerD image
+
+      - name: Build & push RunnerD image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -89,106 +94,78 @@ jobs:
             ${{ env.ECR_REGISTRY }}/containrlab-runnerd:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      # Register updated task definitions
+
+  deploy:
+    name: Deploy to ECS
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.mode == 'build-and-deploy'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Register API/Web task definition
         id: api-web-taskdef
         run: |
-          echo "Registering API/Web task definition..."
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
+          ARN=$(aws ecs register-task-definition \
             --cli-input-json file://infra/task-definitions/api-web-task.json \
             --region ${{ env.AWS_REGION }} \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "task-definition-arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
-          echo "Registered: $TASK_DEF_ARN"
-      
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$ARN" >> $GITHUB_OUTPUT
+
       - name: Register Runner task definition
         id: runner-taskdef
         run: |
-          echo "Registering Runner task definition..."
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
+          ARN=$(aws ecs register-task-definition \
             --cli-input-json file://infra/task-definitions/runner-task.json \
             --region ${{ env.AWS_REGION }} \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-          echo "task-definition-arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
-          echo "Registered: $TASK_DEF_ARN"
-      
-      # Deploy API/Web Service
-      - name: Deploy API/Web to ECS
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$ARN" >> $GITHUB_OUTPUT
+
+      - name: Deploy API/Web service
         run: |
-          echo "Deploying API/Web service with new task definition..."
           aws ecs update-service \
             --cluster containrlab-cluster \
             --service containrlab-service \
-            --task-definition ${{ steps.api-web-taskdef.outputs.task-definition-arn }} \
+            --task-definition ${{ steps.api-web-taskdef.outputs.arn }} \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-      
-      # Deploy Runner Service
-      - name: Deploy Runner to ECS
+
+      - name: Deploy Runner service
         run: |
-          echo "Deploying Runner service with new task definition..."
-          
-          # Update service with minimumHealthyPercent=0 to allow old task to stop first
-          # This is necessary because t3.medium can only fit one 2GB task at a time
           aws ecs update-service \
             --cluster containrlab-runner-ec2 \
             --service containrlab-runner-service \
-            --task-definition ${{ steps.runner-taskdef.outputs.task-definition-arn }} \
+            --task-definition ${{ steps.runner-taskdef.outputs.arn }} \
             --deployment-configuration "minimumHealthyPercent=0,maximumPercent=200" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
-          
-          echo "✅ Runner deployment started (old task will stop before new one starts)"
-      
-      # Wait for services to stabilize
-      - name: Wait for API/Web deployment
+
+      - name: Wait for API/Web stable
         run: |
-          echo "Waiting for API/Web service to stabilize..."
           aws ecs wait services-stable \
             --cluster containrlab-cluster \
             --services containrlab-service \
             --region ${{ env.AWS_REGION }}
-      
-      - name: Wait for Runner deployment
+
+      - name: Wait for Runner stable
         run: |
-          echo "Waiting for Runner service to stabilize..."
           aws ecs wait services-stable \
             --cluster containrlab-runner-ec2 \
             --services containrlab-runner-service \
             --region ${{ env.AWS_REGION }}
-      
-      # Verify deployment
-      - name: Verify deployment
+
+      - name: Verify health
         run: |
-          echo "Checking service health..."
-          
-          # Check API health
-          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.containrlab.click/healthz)
-          if [ "$API_STATUS" = "200" ]; then
-            echo "✅ API is healthy (HTTP $API_STATUS)"
-          else
-            echo "❌ API health check failed (HTTP $API_STATUS)"
-            exit 1
-          fi
-          
-          # Check Web
-          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://app.containrlab.click)
-          if [ "$WEB_STATUS" = "200" ]; then
-            echo "✅ Web is healthy (HTTP $WEB_STATUS)"
-          else
-            echo "❌ Web health check failed (HTTP $WEB_STATUS)"
-            exit 1
-          fi
-          
-          echo "🎉 Deployment successful!"
-      
-      # Notify on failure
-      - name: Deployment failed
-        if: failure()
-        run: |
-          echo "❌ Deployment failed!"
-          echo "Check the logs above for details."
-          echo "Services may be in a partial deployment state."
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ vars.API_HOST }}/healthz")
+          WEB_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ vars.WEB_HOST }}")
+          echo "API $API_STATUS  WEB $WEB_STATUS"
+          [ "$API_STATUS" = "200" ] || { echo "API health failed"; exit 1; }
+          [ "$WEB_STATUS" = "200" ] || { echo "WEB health failed"; exit 1; }

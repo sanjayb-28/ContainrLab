@@ -266,7 +266,7 @@ sequenceDiagram
 graph TB
     Internet[🌍 Internet]
     
-    Route53[🌐 DNS<br/>containrlab.click]
+    DNS[🌐 Cloudflare DNS<br/>sanjaybaskaran.dev]
     
     ALB[🔀 Application Load Balancer<br/>HTTPS:443]
     
@@ -357,7 +357,7 @@ graph LR
     
     ECR[📦 Container Registry]
     ECS[⚡ ECS Production]
-    Prod[✅ app.containrlab.click]
+    Prod[✅ containrlab.sanjaybaskaran.dev]
     
     Dev --> PR
     PR --> Test
