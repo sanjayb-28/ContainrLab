@@ -43,5 +43,8 @@ scripts/deep_freeze.py
 scripts/deep_thaw.py
 docs/PAUSE_RESUME.md
 
-# Infrastructure state
-infra/
+# Infrastructure state (ignore all of infra/ except task definitions)
+infra/*
+!infra/task-definitions/
+infra/task-definitions/*
+!infra/task-definitions/*.json
