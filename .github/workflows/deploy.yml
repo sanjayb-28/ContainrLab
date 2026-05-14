@@ -115,7 +115,7 @@ jobs:
         id: api-web-taskdef
         run: |
           ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://infra/task-definitions/api-web-task.json \
+            --cli-input-json file://$GITHUB_WORKSPACE/infra/task-definitions/api-web-task.json \
             --region ${{ env.AWS_REGION }} \
             --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "arn=$ARN" >> $GITHUB_OUTPUT
@@ -124,7 +124,7 @@ jobs:
         id: runner-taskdef
         run: |
           ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://infra/task-definitions/runner-task.json \
+            --cli-input-json file://$GITHUB_WORKSPACE/infra/task-definitions/runner-task.json \
             --region ${{ env.AWS_REGION }} \
             --query 'taskDefinition.taskDefinitionArn' --output text)
           echo "arn=$ARN" >> $GITHUB_OUTPUT
