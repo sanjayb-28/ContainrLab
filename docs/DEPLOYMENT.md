@@ -84,6 +84,15 @@ echo '{"credsStore": "ecr-login"}' > /root/.docker/config.json
 systemctl restart docker
 ```
 
+RunnerD starts session containers through the Docker socket, so the runnerd task also needs AWS credentials to pull the private `RUNNER_IMAGE` from ECR. Configure the runner ECS task with a `taskRoleArn` that allows:
+
+- `ecr:GetAuthorizationToken`
+- `ecr:BatchCheckLayerAvailability`
+- `ecr:BatchGetImage`
+- `ecr:GetDownloadUrlForLayer`
+
+The production task definition sets `RUNNER_IMAGE_PULL_POLICY=always` so a newly deployed runnerd task refreshes the `latest` runner image before creating sessions.
+
 #### 2.4 Create Load Balancer & Target Groups
 
 - Create Application Load Balancer
@@ -511,7 +520,8 @@ docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/containrlab-runner
 ```
 
 **Common Issues:**
-- ECR authentication fails → Install `amazon-ecr-credential-helper`
+- ECR authentication fails in SSH diagnostics → Install `amazon-ecr-credential-helper`
+- Session start reports `no basic auth credentials` → Verify runnerd has a task role with ECR read permissions and redeploy `infra/task-definitions/runner-task.json`
 - Container won't start → Verify privileged mode enabled in task definition
 - Out of resources → Check available CPU/memory on instance
 

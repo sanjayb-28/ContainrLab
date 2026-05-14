@@ -25,6 +25,10 @@
         {
           "name": "RUNNER_NANO_CPUS",
           "value": "1000000000"
+        },
+        {
+          "name": "RUNNER_IMAGE_PULL_POLICY",
+          "value": "always"
         }
       ],
       "mountPoints": [
@@ -55,6 +59,7 @@
   ],
   "family": "containrlab-runner",
   "executionRoleArn": "arn:aws:iam::143353052888:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::143353052888:role/ecsTaskExecutionRole",
   "networkMode": "bridge",
   "volumes": [
     {

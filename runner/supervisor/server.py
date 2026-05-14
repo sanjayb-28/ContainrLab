@@ -6,16 +6,18 @@ import base64
 import binascii
 import io
 import json
+import logging
 import os
+import re
 import shlex
 import tarfile
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
 import docker  # type: ignore[import]
-from docker.errors import APIError, NotFound  # type: ignore[import]
-import logging
+from docker.errors import APIError, DockerException, ImageNotFound, NotFound  # type: ignore[import]
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from starlette.websockets import WebSocketState  # type: ignore[import]
 from pydantic import BaseModel, Field  # type: ignore[import]
@@ -29,6 +31,7 @@ if not logger.handlers:
 client = docker.from_env()
 
 RUNNER_IMAGE = os.getenv("RUNNER_IMAGE", "containrlab-runner:latest")
+RUNNER_IMAGE_PULL_POLICY = os.getenv("RUNNER_IMAGE_PULL_POLICY", "missing").lower()
 LABS_ROOT = Path(os.getenv("LABS_ROOT", "/labs"))
 STARTUP_TIMEOUT = int(os.getenv("STARTUP_TIMEOUT", "30"))
 MEMORY_LIMIT = os.getenv("RUNNER_MEMORY", "2g")
@@ -38,6 +41,11 @@ SOCKET_PATH = os.getenv("RUNNER_SOCKET_PATH", "/var/run/docker.sock")
 MAX_LOG_LINES = 200
 DEFAULT_SHELL = os.getenv("RUNNER_DEFAULT_SHELL", "/bin/sh")
 WORKSPACE_ROOT = "/workspace"
+ECR_REGISTRY_RE = re.compile(
+    r"^(?P<account_id>\d{12})\.dkr\.ecr\.(?P<region>[a-z0-9-]+)\.amazonaws\.com(?:\.cn)?$"
+)
+_runner_image_lock = threading.Lock()
+_runner_image_ready = False
 LISTING_SCRIPT = """
 import json, os, sys, time
 root = sys.argv[1]
@@ -153,6 +161,7 @@ def start_runner(payload: StartRequest) -> dict[str, str]:
     if not starter_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Starter assets not found for lab '{payload.lab_slug}'")
 
+    _ensure_runner_image_available()
     volume = _ensure_volume(volume_name)
     _remove_container_if_exists(container_name)
 
@@ -176,6 +185,82 @@ def start_runner(payload: StartRequest) -> dict[str, str]:
     _seed_workspace(container, starter_path)
 
     return {"session_id": payload.session_id, "container": container.name}
+
+
+def _ensure_runner_image_available() -> None:
+    """Pull private runner images with explicit auth before Docker creates a session."""
+    global _runner_image_ready
+
+    pull_policy = RUNNER_IMAGE_PULL_POLICY
+    if pull_policy not in {"always", "missing", "never"}:
+        logger.warning("Invalid RUNNER_IMAGE_PULL_POLICY=%s; falling back to missing", RUNNER_IMAGE_PULL_POLICY)
+        pull_policy = "missing"
+
+    if pull_policy == "never":
+        return
+
+    if pull_policy == "missing" and _runner_image_ready:
+        return
+
+    with _runner_image_lock:
+        if pull_policy == "missing" and _runner_image_ready:
+            return
+        if pull_policy == "missing" and _has_local_image(RUNNER_IMAGE):
+            _runner_image_ready = True
+            return
+
+        auth_config = _registry_auth_config(RUNNER_IMAGE)
+        try:
+            logger.info("Pulling runner image %s", RUNNER_IMAGE)
+            pull_kwargs: dict[str, Any] = {}
+            if auth_config is not None:
+                pull_kwargs["auth_config"] = auth_config
+            client.images.pull(RUNNER_IMAGE, **pull_kwargs)
+        except APIError as exc:
+            detail = getattr(exc, "explanation", str(exc))
+            raise HTTPException(status_code=502, detail=f"Failed to pull runner image '{RUNNER_IMAGE}': {detail}") from exc
+        except DockerException as exc:
+            raise HTTPException(status_code=502, detail=f"Failed to pull runner image '{RUNNER_IMAGE}': {exc}") from exc
+
+        _runner_image_ready = True
+
+
+def _has_local_image(image: str) -> bool:
+    try:
+        client.images.get(image)
+        return True
+    except ImageNotFound:
+        return False
+    except NotFound:
+        return False
+
+
+def _registry_auth_config(image: str) -> dict[str, str] | None:
+    registry = image.split("/", 1)[0]
+    match = ECR_REGISTRY_RE.match(registry)
+    if match is None:
+        return None
+
+    try:
+        import boto3  # type: ignore[import]
+    except ImportError as exc:
+        raise HTTPException(status_code=502, detail="ECR runner images require boto3 in the runnerd image") from exc
+
+    account_id = match.group("account_id")
+    region = match.group("region")
+
+    try:
+        response = boto3.client("ecr", region_name=region).get_authorization_token(registryIds=[account_id])
+        auth_data = response["authorizationData"][0]
+        username, password = base64.b64decode(auth_data["authorizationToken"]).decode("utf-8").split(":", 1)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to get ECR auth token for '{registry}': {exc}") from exc
+
+    return {
+        "username": username,
+        "password": password,
+        "serveraddress": registry,
+    }
 
 
 @app.post("/stop")
